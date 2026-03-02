@@ -1,3 +1,6 @@
+# Configuração local com chaves reais (nunca commitar)
+config.js
+
 # Temporários (sempre regeneráveis)
 .tmp/
 

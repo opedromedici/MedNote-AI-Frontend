@@ -1,7 +1,7 @@
 // MedNote AI — OpenAI Integration Module (ai.js)
-// ATENÇÃO: substitua OPENAI_API_KEY pela sua nova chave após revogar a atual.
+// A chave fica em config.js (gitignored). Nunca commitar chaves reais.
 
-const OPENAI_API_KEY = 'SUA_CHAVE_OPENAI_AQUI'; // Nunca commitar chaves reais — use .env
+const OPENAI_API_KEY = (typeof CONFIG !== 'undefined') ? CONFIG.OPENAI_API_KEY : '';
 
 const MedNoteAI = {
 
