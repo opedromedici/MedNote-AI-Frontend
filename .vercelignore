@@ -1,0 +1,6 @@
+.tmp/
+.env
+config.js
+execution/
+directives/
+gh.zip
