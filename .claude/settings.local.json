@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(mkdir:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(ls:*)",
+      "Bash(bash execution/auto_push.sh:*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"G:/Meu Drive/PROJETOS DE IA (Claude Code + Cursor + Antigravity)/MedNote AI/MedNote-AI-Frontend/execution/auto_push.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
