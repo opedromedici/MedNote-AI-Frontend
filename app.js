@@ -3,7 +3,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Current state
     const AppState = {
-        currentPage: 'record', // 'record', 'templates', 'results'
+        currentPage: 'record', // 'record', 'templates', 'prompt', 'results'
         recordingStatus: 'idle', // 'idle', 'recording', 'processing', 'done'
         templates: {
             doctor: '',
@@ -15,13 +15,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const views = {
         record: document.getElementById('view-record'),
         templates: document.getElementById('view-templates'),
+        prompt: document.getElementById('view-prompt'),
         results: document.getElementById('view-results')
     };
 
     const navLinks = {
         record: document.getElementById('nav-record'),
-        templates: document.getElementById('nav-templates')
-        // Results is usually reached via flow, but could be added
+        templates: document.getElementById('nav-templates'),
+        prompt: document.getElementById('nav-prompt')
     };
 
     // Navigation Logic
@@ -60,11 +61,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event Listeners for Navigation
     if (navLinks.record) navLinks.record.addEventListener('click', (e) => { e.preventDefault(); navigateTo('record'); });
     if (navLinks.templates) navLinks.templates.addEventListener('click', (e) => { e.preventDefault(); navigateTo('templates'); });
+    if (navLinks.prompt) navLinks.prompt.addEventListener('click', (e) => { e.preventDefault(); navigateTo('prompt'); });
 
     // Initialize Modules (To be defined in respective files, but called here if needed)
     if (typeof initRecorder === 'function') initRecorder({ navigateTo });
     if (typeof initTemplates === 'function') initTemplates();
     if (typeof initResults === 'function') initResults();
+    if (typeof initPrompt === 'function') initPrompt();
 
     // Set initial view
     navigateTo('record');

@@ -1,0 +1,14 @@
+# Temporários (sempre regeneráveis)
+.tmp/
+
+# Variáveis de ambiente e credenciais
+.env
+credentials.json
+token.json
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

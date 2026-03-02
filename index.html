@@ -62,6 +62,11 @@
                     <i class="ph ph-faders text-lg"></i>
                     Meus Templates
                 </a>
+                <a href="#" id="nav-prompt"
+                    class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900">
+                    <i class="ph ph-brain text-lg"></i>
+                    Instruções da IA
+                </a>
             </nav>
 
             <!-- User Status -->
@@ -120,32 +125,71 @@
                             <i class="ph-fill ph-microphone text-4xl group-hover:animate-pulse"></i>
                         </button>
                         <h3 class="text-xl font-semibold text-zinc-900 mt-6 tracking-tight">Iniciar Gravação</h3>
-                        <p class="text-sm text-zinc-500 mt-2 max-w-sm">Capture o áudio ambiente da sua consulta.</p>
+                        <p class="text-sm text-zinc-500 mt-2 max-w-sm">O navegador solicitará permissão de microfone ao iniciar.</p>
+
+                        <!-- Mic Error Message (hidden by default) -->
+                        <div id="mic-error-banner" class="hidden mt-5 flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl px-4 py-3 max-w-sm text-left">
+                            <i class="ph ph-warning-circle text-base mt-0.5 shrink-0"></i>
+                            <span id="mic-error-text"></span>
+                        </div>
+
+                        <!-- Browser no-support warning -->
+                        <div id="speech-unsupported-banner" class="hidden mt-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs rounded-xl px-4 py-2.5 max-w-sm">
+                            <i class="ph ph-warning text-base shrink-0"></i>
+                            <span>Transcrição ao vivo indisponível neste navegador. Use Chrome ou Edge para melhor experiência.</span>
+                        </div>
                     </div>
 
                     <!-- Recording State (Hidden initially) -->
                     <div id="state-recording"
                         class="hidden flex-col items-center z-10 transition-all duration-300 w-full">
-                        <div class="text-5xl font-mono text-zinc-900 font-medium tracking-tighter mb-8"
+                        <div class="text-5xl font-mono text-zinc-900 font-medium tracking-tighter mb-4"
                             id="timer-display">00:00</div>
 
-                        <!-- Visualizer -->
-                        <div class="flex items-center gap-1.5 h-16 mb-12">
-                            <div class="w-1.5 bg-red-500 rounded-full audio-bar h-1/3"></div>
-                            <div class="w-1.5 bg-red-500 rounded-full audio-bar h-full"></div>
-                            <div class="w-1.5 bg-red-500 rounded-full audio-bar h-1/2"></div>
-                            <div class="w-1.5 bg-red-500 rounded-full audio-bar h-4/5"></div>
-                            <div class="w-1.5 bg-red-500 rounded-full audio-bar h-1/4"></div>
-                            <div class="w-1.5 bg-red-500 rounded-full audio-bar h-2/3"></div>
-                            <div class="w-1.5 bg-red-500 rounded-full audio-bar h-1/2"></div>
+                        <!-- Visualizer (bars controlled by JS via real audio or CSS fallback) -->
+                        <div id="audio-visualizer" class="flex items-center gap-1.5 h-10 mb-4">
+                            <div class="viz-bar w-1.5 bg-red-500 rounded-full transition-all duration-75" style="height:33%"></div>
+                            <div class="viz-bar w-1.5 bg-red-500 rounded-full transition-all duration-75" style="height:100%"></div>
+                            <div class="viz-bar w-1.5 bg-red-500 rounded-full transition-all duration-75" style="height:50%"></div>
+                            <div class="viz-bar w-1.5 bg-red-500 rounded-full transition-all duration-75" style="height:80%"></div>
+                            <div class="viz-bar w-1.5 bg-red-500 rounded-full transition-all duration-75" style="height:25%"></div>
+                            <div class="viz-bar w-1.5 bg-red-500 rounded-full transition-all duration-75" style="height:66%"></div>
+                            <div class="viz-bar w-1.5 bg-red-500 rounded-full transition-all duration-75" style="height:50%"></div>
                         </div>
 
-                        <button id="btn-stop-record"
-                            class="recording-ring w-20 h-20 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg">
-                            <div class="w-6 h-6 bg-white rounded-sm"></div>
-                        </button>
-                        <span
-                            class="text-xs font-semibold text-red-500 mt-4 uppercase tracking-widest animate-pulse">Gravando</span>
+                        <!-- Live Transcription Feed -->
+                        <div class="w-full max-w-lg mb-6">
+                            <div class="flex items-center gap-2 mb-2">
+                                <div class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                <span class="text-[11px] font-semibold text-red-500 uppercase tracking-widest">Transcrição ao vivo</span>
+                            </div>
+                            <div id="live-transcript-box"
+                                class="bg-white/70 border border-red-100 rounded-xl p-4 h-28 overflow-y-auto text-sm text-zinc-600 leading-relaxed text-left custom-scroll">
+                                <span id="live-transcript-text" class="typing-cursor"></span>
+                            </div>
+                        </div>
+
+                        <!-- Controls row: Pause + Stop -->
+                        <div class="flex items-center gap-6">
+                            <!-- Pause / Resume -->
+                            <div class="flex flex-col items-center gap-2">
+                                <button id="btn-pause-record"
+                                    class="w-12 h-12 rounded-full bg-white border-2 border-zinc-200 text-zinc-600 flex items-center justify-center hover:border-amber-400 hover:text-amber-500 transition-all shadow-sm">
+                                    <i id="pause-icon" class="ph ph-pause text-xl"></i>
+                                </button>
+                                <span id="pause-label" class="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest">Pausar</span>
+                            </div>
+
+                            <!-- Stop -->
+                            <div class="flex flex-col items-center gap-2">
+                                <button id="btn-stop-record"
+                                    class="recording-ring w-16 h-16 rounded-full bg-red-500 text-white flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg">
+                                    <div class="w-5 h-5 bg-white rounded-sm"></div>
+                                </button>
+                                <span id="recording-label"
+                                    class="text-xs font-semibold text-red-500 uppercase tracking-widest animate-pulse">Gravando</span>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Processing State (Hidden initially) -->
@@ -160,6 +204,52 @@
                             <div id="progress-bar"
                                 class="h-full bg-emerald-500 w-0 transition-all duration-300 ease-out"></div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Transcription Storage Card -->
+                <div class="mt-6 glass-card bg-white/80 w-full rounded-2xl border border-zinc-200/50 shadow-lg overflow-hidden">
+                    <!-- Card Header -->
+                    <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-7 h-7 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600">
+                                <i class="ph ph-text-align-left text-sm"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-semibold text-zinc-900 leading-none">Transcrição da Consulta</h3>
+                                <p id="transcription-status" class="text-[11px] text-zinc-400 mt-0.5">Aguardando gravação...</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[11px] text-zinc-400"><span id="transcript-word-count">0</span> palavras</span>
+                            <div class="w-px h-4 bg-zinc-200"></div>
+                            <button id="btn-copy-transcript" title="Copiar transcrição"
+                                class="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-all">
+                                <i class="ph ph-copy text-sm"></i>
+                            </button>
+                            <button id="btn-clear-transcript" title="Limpar transcrição"
+                                class="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                                <i class="ph ph-trash text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Transcript Textarea -->
+                    <textarea id="stored-transcript"
+                        class="w-full bg-transparent p-6 text-sm text-zinc-700 leading-relaxed resize-none focus:outline-none min-h-[160px] max-h-72 custom-scroll"
+                        placeholder="O texto transcrito aparecerá aqui ao final da gravação. Você pode editar antes de gerar o resumo."></textarea>
+
+                    <!-- Card Footer -->
+                    <div class="flex items-center justify-between px-6 py-3 border-t border-zinc-100 bg-zinc-50/50">
+                        <p class="text-[11px] text-zinc-400 flex items-center gap-1.5">
+                            <i class="ph ph-info"></i>
+                            Edite o texto se necessário antes de gerar o resumo
+                        </p>
+                        <button id="btn-generate-summary"
+                            class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-full shadow-sm transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                            disabled>
+                            <i class="ph ph-sparkle"></i> Gerar Resumo
+                        </button>
                     </div>
                 </div>
             </div>
@@ -238,16 +328,20 @@
                     <!-- Doctor Result -->
                     <div class="flex flex-col h-full group">
                         <div class="flex items-center justify-between mb-3 px-1">
-                            <h3 class="text-sm font-semibold text-zinc-900 tracking-wide uppercase">Prontuário Médico
-                            </h3>
-                            <button
-                                class="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1">
-                                <i class="ph ph-copy"></i> Copiar
-                            </button>
+                            <h3 class="text-sm font-semibold text-zinc-900 tracking-wide uppercase">Prontuário Médico</h3>
+                            <div class="flex gap-3">
+                                <button id="btn-copy-doctor"
+                                    class="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 transition-colors">
+                                    <i class="ph ph-copy"></i> Copiar
+                                </button>
+                                <button id="btn-download-doctor"
+                                    class="text-xs text-zinc-600 hover:text-zinc-900 font-medium flex items-center gap-1 transition-colors">
+                                    <i class="ph ph-download-simple"></i> Baixar PDF
+                                </button>
+                            </div>
                         </div>
                         <div class="glass-card bg-white p-6 md:p-8 rounded-2xl border border-zinc-200/60 shadow-lg flex-grow overflow-y-auto w-full custom-scroll text-sm text-zinc-800 leading-relaxed font-serif"
                             id="result-doctor-content">
-                            <!-- Content injected via JS -->
                         </div>
                     </div>
 
@@ -256,20 +350,82 @@
                         <div class="flex items-center justify-between mb-3 px-1">
                             <h3 class="text-sm font-semibold text-zinc-900 tracking-wide uppercase">Versão Paciente</h3>
                             <div class="flex gap-3">
-                                <button
-                                    class="text-xs text-orange-600 hover:text-orange-700 font-medium flex items-center gap-1">
-                                    <i class="ph ph-whatsapp-logo"></i> Enviar
+                                <button id="btn-copy-patient"
+                                    class="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 transition-colors">
+                                    <i class="ph ph-copy"></i> Copiar
                                 </button>
-                                <button
-                                    class="text-xs text-zinc-600 hover:text-zinc-900 font-medium flex items-center gap-1">
+                                <button id="btn-download-patient"
+                                    class="text-xs text-zinc-600 hover:text-zinc-900 font-medium flex items-center gap-1 transition-colors">
                                     <i class="ph ph-download-simple"></i> Baixar PDF
                                 </button>
                             </div>
                         </div>
                         <div class="glass-card bg-white p-6 md:p-8 rounded-2xl border border-zinc-200/60 shadow-lg flex-grow overflow-y-auto w-full custom-scroll text-[15px] text-zinc-700 leading-relaxed"
                             id="result-patient-content">
-                            <!-- Content injected via JS -->
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: AI PROMPT (Instruções para a IA) -->
+            <div id="view-prompt" class="hidden flex-col p-8 lg:p-12 w-full max-w-5xl mx-auto h-full">
+                <!-- Header -->
+                <div class="mb-8 flex justify-between items-end">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="px-2 py-1 bg-gradient-to-r from-violet-500 to-violet-600 text-white text-[10px] uppercase font-bold tracking-widest rounded">Novo</span>
+                        </div>
+                        <h1 class="text-3xl font-medium text-zinc-900 tracking-tighter mb-1">Instruções da IA</h1>
+                        <p class="text-sm text-zinc-500 font-medium">Defina como a IA deve interpretar e redigir os resumos ao final de cada consulta.</p>
+                    </div>
+                    <button id="btn-save-prompt"
+                        class="bg-zinc-900 hover:bg-black text-white text-sm font-medium py-2.5 px-5 rounded-full shadow-lg transition-transform hover:-translate-y-0.5 flex items-center gap-2">
+                        <i class="ph ph-floppy-disk"></i> Salvar
+                    </button>
+                </div>
+
+                <!-- Info Banner -->
+                <div class="flex items-start gap-3 bg-violet-50 border border-violet-100 rounded-2xl p-4 mb-6">
+                    <i class="ph ph-info text-violet-500 text-xl mt-0.5 shrink-0"></i>
+                    <p class="text-sm text-violet-700 leading-relaxed">
+                        Este prompt é enviado à IA como instrução de sistema antes da transcrição. Use-o para informar sua especialidade, preferências de linguagem, formato dos laudos e qualquer regra clínica específica do seu fluxo de trabalho.
+                    </p>
+                </div>
+
+                <!-- Presets -->
+                <div class="mb-5">
+                    <p class="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-3">Presets por especialidade</p>
+                    <div class="flex flex-wrap gap-2" id="prompt-presets">
+                        <button data-preset="geral" class="preset-btn px-3 py-1.5 text-xs font-medium rounded-full border border-zinc-200 bg-white text-zinc-600 hover:border-violet-400 hover:text-violet-600 transition-all">Clínica Geral</button>
+                        <button data-preset="cardio" class="preset-btn px-3 py-1.5 text-xs font-medium rounded-full border border-zinc-200 bg-white text-zinc-600 hover:border-violet-400 hover:text-violet-600 transition-all">Cardiologia</button>
+                        <button data-preset="pediatria" class="preset-btn px-3 py-1.5 text-xs font-medium rounded-full border border-zinc-200 bg-white text-zinc-600 hover:border-violet-400 hover:text-violet-600 transition-all">Pediatria</button>
+                        <button data-preset="ortopedia" class="preset-btn px-3 py-1.5 text-xs font-medium rounded-full border border-zinc-200 bg-white text-zinc-600 hover:border-violet-400 hover:text-violet-600 transition-all">Ortopedia</button>
+                        <button data-preset="psiquiatria" class="preset-btn px-3 py-1.5 text-xs font-medium rounded-full border border-zinc-200 bg-white text-zinc-600 hover:border-violet-400 hover:text-violet-600 transition-all">Psiquiatria</button>
+                        <button data-preset="nutrologia" class="preset-btn px-3 py-1.5 text-xs font-medium rounded-full border border-zinc-200 bg-white text-zinc-600 hover:border-violet-400 hover:text-violet-600 transition-all">Nutrologia</button>
+                        <button data-preset="dermatologia" class="preset-btn px-3 py-1.5 text-xs font-medium rounded-full border border-zinc-200 bg-white text-zinc-600 hover:border-violet-400 hover:text-violet-600 transition-all">Dermatologia</button>
+                    </div>
+                </div>
+
+                <!-- Prompt Textarea -->
+                <div class="glass-card bg-white/60 p-6 rounded-2xl border border-zinc-200 flex flex-col flex-grow mb-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-600">
+                                <i class="ph ph-brain"></i>
+                            </div>
+                            <h3 class="text-base font-semibold text-zinc-900 tracking-tight">Prompt do Sistema</h3>
+                        </div>
+                        <button id="btn-clear-prompt" class="text-xs text-zinc-400 hover:text-red-500 font-medium flex items-center gap-1 transition-colors">
+                            <i class="ph ph-trash"></i> Limpar
+                        </button>
+                    </div>
+                    <textarea id="ai-system-prompt"
+                        class="flex-grow w-full bg-white/70 border border-zinc-200 rounded-xl p-4 text-sm text-zinc-700 focus:outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100 transition-all resize-none font-mono min-h-[320px]"
+                        placeholder="Ex: Você é um assistente médico especializado em cardiologia. Ao gerar os resumos, utilize terminologia técnica cardiovascular, estruture o prontuário no formato SOAP e inclua sempre a avaliação do risco cardiovascular do paciente..."></textarea>
+
+                    <!-- Token counter -->
+                    <div class="flex justify-end mt-2">
+                        <span class="text-[11px] text-zinc-400"><span id="prompt-char-count">0</span> caracteres</span>
                     </div>
                 </div>
             </div>
@@ -278,10 +434,12 @@
     </main>
 
     <!-- Scripts -->
+    <script src="ai.js"></script>
     <script src="app.js"></script>
     <script src="recorder.js"></script>
     <script src="templates.js"></script>
     <script src="results.js"></script>
+    <script src="prompt.js"></script>
 </body>
 
 </html>
