@@ -20,7 +20,8 @@ let analyser     = null;
 let vizAnimFrame = null;
 
 // Pause state
-let isPaused = false;
+let isPaused         = false;
+let currentSessionId = null;
 
 // ─── SpeechRecognition ────────────────────────────────────────────────────────
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -31,7 +32,7 @@ const hasSpeechAPI      = !!SpeechRecognition;
  * Cada instância mantém seu próprio sessionFinal isolado.
  * O texto acumulado de sessões anteriores fica em accumulatedTranscript (escopo de módulo).
  */
-function buildRecognition(onResult, onError) {
+function buildRecognition(onResult, onError, onChunk) {
     if (!hasSpeechAPI) return null;
 
     const rec = new SpeechRecognition();
@@ -63,7 +64,8 @@ function buildRecognition(onResult, onError) {
 
     // onend: chamado quando a sessão encerra (auto ou manual)
     rec.onend = () => {
-        // Salva o texto dessa sessão no acumulado antes de reiniciar
+        // Persiste o chunk antes de reiniciar (proteção contra refresh)
+        if (onChunk && sessionFinal.trim()) onChunk(sessionFinal);
         accumulatedTranscript += sessionFinal;
         sessionFinal = '';
 
@@ -75,6 +77,7 @@ function buildRecognition(onResult, onError) {
 
     // Método para forçar flush antes de um stop manual (pause ou stop)
     rec._flush = () => {
+        if (onChunk && sessionFinal.trim()) onChunk(sessionFinal);
         accumulatedTranscript += sessionFinal;
         sessionFinal = '';
     };
@@ -213,6 +216,11 @@ function initRecorder(app) {
 
         mediaStream = stream;
 
+        // Finaliza sessão anterior (se houver) e cria nova
+        if (currentSessionId) SessionManager.finalizeSession(currentSessionId);
+        const _sess      = SessionManager.createSession();
+        currentSessionId = _sess.id;
+
         // Reset acumuladores para nova gravação
         accumulatedTranscript = '';
         window.lastAudioBlob  = null;
@@ -229,7 +237,12 @@ function initRecorder(app) {
         if (hasSpeechAPI) {
             recognition = buildRecognition(
                 (final, interim) => updateLiveBox(final, interim),
-                (code) => { if (code === 'not-allowed') showMicError('Permissão de microfone bloqueada.'); }
+                (code) => { if (code === 'not-allowed') showMicError('Permissão de microfone bloqueada.'); },
+                (texto) => {
+                    SessionManager.saveChunk(currentSessionId, texto);
+                    setStatus('Salvando...', 'emerald');
+                    setTimeout(() => { if (!isPaused) setStatus('Gravando e transcrevendo ao vivo...', 'red'); }, 1200);
+                }
             );
             try { recognition.start(); } catch (_) {}
         } else {
@@ -265,6 +278,7 @@ function initRecorder(app) {
 
         // Salva o texto da sessão atual antes de parar
         stopRecognition();
+        if (currentSessionId) SessionManager.updateStatus(currentSessionId, 'pausada');
 
         stopVisualizer();
 
@@ -278,10 +292,12 @@ function initRecorder(app) {
         el.btnPause?.classList.add('border-amber-400', 'text-amber-500');
         el.btnPause?.classList.remove('border-zinc-200', 'text-zinc-600');
         el.glow.classList.replace('bg-red-500/20', 'bg-amber-500/10');
+        setStatus('Consulta pausada', 'amber');
     }
 
     function resumeRecording() {
         isPaused = false;
+        if (currentSessionId) SessionManager.updateStatus(currentSessionId, 'em_andamento');
 
         timerInterval = setInterval(() => { seconds++; el.timerDisplay.textContent = formatTime(seconds); }, 1000);
 
@@ -291,7 +307,12 @@ function initRecorder(app) {
         if (hasSpeechAPI && mediaStream?.active) {
             recognition = buildRecognition(
                 (final, interim) => updateLiveBox(final, interim),
-                () => {}
+                () => {},
+                (texto) => {
+                    SessionManager.saveChunk(currentSessionId, texto);
+                    setStatus('Salvando...', 'emerald');
+                    setTimeout(() => { if (!isPaused) setStatus('Gravando e transcrevendo ao vivo...', 'red'); }, 1200);
+                }
             );
             try { recognition.start(); } catch (_) {}
         }
@@ -308,6 +329,7 @@ function initRecorder(app) {
         el.btnPause?.classList.remove('border-amber-400', 'text-amber-500');
         el.btnPause?.classList.add('border-zinc-200', 'text-zinc-600');
         el.glow.classList.replace('bg-amber-500/10', 'bg-red-500/20');
+        setStatus('Consulta retomada — gravando...', 'red');
     }
 
     // ── Stop recording ────────────────────────────────────────────────────────
@@ -318,6 +340,7 @@ function initRecorder(app) {
 
         // Salva o texto da sessão atual antes de parar
         stopRecognition();
+        if (currentSessionId) SessionManager.finalizeSession(currentSessionId);
 
         // Coleta o áudio final
         if (mediaRecorder?.state !== 'inactive') {
@@ -385,6 +408,7 @@ function initRecorder(app) {
             localStorage.removeItem(TRANSCRIPT_STORAGE_KEY);
             accumulatedTranscript = '';
             window.lastAudioBlob  = null;
+            if (currentSessionId) { SessionManager.clearChunks(currentSessionId); currentSessionId = null; }
             updateWordCount('');
             setStatus('Aguardando gravação...', 'zinc');
             enableGenerateButton(false);
@@ -486,12 +510,32 @@ function initRecorder(app) {
         setStatus('Erro de microfone', 'red');
     }
 
-    // ── Init: restaura transcrição anterior ──────────────────────────────────
-    const saved = localStorage.getItem(TRANSCRIPT_STORAGE_KEY);
-    if (saved && el.storedTranscript) {
-        el.storedTranscript.value = saved;
-        updateWordCount(saved);
-        setStatus('Transcrição anterior restaurada', 'zinc');
-        enableGenerateButton(true);
+    // ── Init: recupera sessão ativa ou transcrição anterior ───────────────────
+    SessionManager.cleanup();
+    const activeSession = SessionManager.getActiveSession();
+    if (activeSession) {
+        const consolidated = SessionManager.getConsolidatedTranscript(activeSession.id);
+        if (consolidated) {
+            currentSessionId      = activeSession.id;
+            accumulatedTranscript = consolidated;
+            if (el.storedTranscript) {
+                el.storedTranscript.value = consolidated;
+                updateWordCount(consolidated);
+            }
+            const msg = activeSession.status === 'pausada'
+                ? 'Consulta pausada restaurada — edite ou gere o resumo'
+                : 'Sessão anterior encontrada — transcrição restaurada';
+            setStatus(msg, 'violet');
+            enableGenerateButton(true);
+        }
+    } else {
+        // Fallback: chave legada de sessão única (retrocompatibilidade)
+        const saved = localStorage.getItem(TRANSCRIPT_STORAGE_KEY);
+        if (saved && el.storedTranscript) {
+            el.storedTranscript.value = saved;
+            updateWordCount(saved);
+            setStatus('Transcrição anterior restaurada', 'zinc');
+            enableGenerateButton(true);
+        }
     }
 }
