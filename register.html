@@ -156,8 +156,8 @@
             } else if (data?.user?.identities?.length === 0) {
                 showError('Este e-mail já está cadastrado.');
             } else {
-                showSuccess('Conta criada! Verifique seu e-mail para confirmar o cadastro.');
-                document.getElementById('register-form').reset();
+                // Conta criada e sessão iniciada — redireciona direto ao app
+                window.location.href = 'index.html';
             }
         });
     </script>
