@@ -71,7 +71,7 @@ function buildRecognition(onResult, onError, onChunk) {
 
         // Reinicia automaticamente apenas se ainda estiver gravando
         if (mediaStream && mediaStream.active && !isPaused) {
-            try { rec.start(); } catch (_) {}
+            setTimeout(() => { try { rec.start(); } catch (_) {} }, 150);
         }
     };
 
@@ -254,7 +254,7 @@ function initRecorder(app) {
 
         el.stateIdle.classList.add('hidden');
         el.stateRecording.classList.remove('hidden');
-        el.stateRecording.classList.add('fade-in');
+        el.stateRecording.classList.add('flex', 'fade-in');
         el.glow.classList.replace('bg-emerald-500/0', 'bg-red-500/20');
 
         seconds = 0;
@@ -371,6 +371,7 @@ function initRecorder(app) {
         enableGenerateButton(true);
 
         el.stateRecording.classList.add('hidden');
+        el.stateRecording.classList.remove('flex');
         el.stateIdle.classList.remove('hidden');
         el.glow.classList.replace('bg-red-500/20', 'bg-emerald-500/0');
     });
@@ -380,8 +381,9 @@ function initRecorder(app) {
         el.btnGenerateSummary.addEventListener('click', () => {
             el.stateIdle.classList.add('hidden');
             el.stateRecording.classList.add('hidden');
+            el.stateRecording.classList.remove('flex');
             el.stateProcessing.classList.remove('hidden');
-            el.stateProcessing.classList.add('fade-in');
+            el.stateProcessing.classList.add('flex', 'fade-in');
             el.glow.classList.replace('bg-emerald-500/0', 'bg-emerald-500/20');
 
             setStatus('Processando...', 'violet');
@@ -498,6 +500,11 @@ function initRecorder(app) {
                         templatePacienteSnap: patientTemplate,
                         promptIaSnap:        systemPrompt,
                         duracaoSegundos:     seconds,
+                    }).then(() => {
+                        // Atualiza a lista de consultas em background para estar pronta ao navegar
+                        if (typeof window.loadConsultasList === 'function') {
+                            window.loadConsultasList().catch(() => {});
+                        }
                     }).catch(() => {});
 
                     if (window.lastAudioBlob && window.lastAudioBlob.size > 0) {
@@ -521,6 +528,7 @@ function initRecorder(app) {
 
     function resetRecorder() {
         el.stateProcessing.classList.add('hidden');
+        el.stateProcessing.classList.remove('flex');
         el.stateIdle.classList.remove('hidden');
         el.progressBar.style.width = '0%';
         el.glow.classList.replace('bg-emerald-500/20', 'bg-emerald-500/0');

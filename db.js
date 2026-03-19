@@ -100,22 +100,36 @@ const DB = (() => {
     }) {
         if (!consultaId) return;
         const client = await getClient();
+
+        const basePayload = {
+            status:                 'finalizada',
+            duracao_segundos:       duracaoSegundos ?? 0,
+            transcript_rascunho:    transcriptRascunho  ?? null,
+            transcript_whisper:     transcriptWhisper   ?? null,
+            resultado_medico:       resultadoMedico     ?? null,
+            resultado_paciente:     resultadoPaciente   ?? null,
+            template_medico_snap:   templateMedicoSnap  ?? null,
+            template_paciente_snap: templatePacienteSnap ?? null,
+            prompt_ia_snap:         promptIaSnap        ?? null,
+        };
+
         const { error } = await client
             .from('consultas')
-            .update({
-                status:                 'finalizada',
-                patient_name:           patientName ?? null,
-                duracao_segundos:       duracaoSegundos ?? 0,
-                transcript_rascunho:    transcriptRascunho  ?? null,
-                transcript_whisper:     transcriptWhisper   ?? null,
-                resultado_medico:       resultadoMedico     ?? null,
-                resultado_paciente:     resultadoPaciente   ?? null,
-                template_medico_snap:   templateMedicoSnap  ?? null,
-                template_paciente_snap: templatePacienteSnap ?? null,
-                prompt_ia_snap:         promptIaSnap        ?? null,
-            })
+            .update({ ...basePayload, patient_name: patientName ?? null })
             .eq('id', consultaId);
-        if (error) console.warn('[DB] saveConsultaResults:', error.message);
+
+        if (error) {
+            // Coluna patient_name ainda não existe — tenta sem ela
+            if (error.message?.includes('patient_name')) {
+                const { error: e2 } = await client
+                    .from('consultas')
+                    .update(basePayload)
+                    .eq('id', consultaId);
+                if (e2) console.warn('[DB] saveConsultaResults (fallback):', e2.message);
+            } else {
+                console.warn('[DB] saveConsultaResults:', error.message);
+            }
+        }
     }
 
     async function listConsultas(search = '') {
