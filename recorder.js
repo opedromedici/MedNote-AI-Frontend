@@ -473,7 +473,7 @@ function initRecorder(app) {
                 return;
             }
 
-            setProgress('50%', 'Gerando Prontuário Médico (GPT-4o)...');
+            setProgress('50%', 'Gerando prontuário e resumo (GPT-4o)...');
             const doctorTemplate  = localStorage.getItem('mednote_template_doctor')  || '';
             const patientTemplate = localStorage.getItem('mednote_template_patient') || '';
             const systemPrompt    = localStorage.getItem('mednote_ai_system_prompt') || '';
@@ -482,36 +482,58 @@ function initRecorder(app) {
                 transcript, doctorTemplate, patientTemplate, systemPrompt
             );
 
-            setProgress('90%', 'Gerando Resumo do Paciente (GPT-4o)...');
-            setProgress('100%', 'Finalizado!');
+            setProgress('85%', 'Salvando consulta...');
 
-            // Salva resultados completos e áudio no Supabase (background)
-            if (window.DB && currentSessionId) {
-                const supabaseId = SessionManager.getSupabaseId(currentSessionId);
-                if (supabaseId) {
-                    DB.saveConsultaResults({
-                        patientName:         document.getElementById('patient-name-input')?.value.trim() || '',
-                        consultaId:          supabaseId,
-                        transcriptRascunho:  el.storedTranscript?.value || '',
-                        transcriptWhisper:   transcript,
-                        resultadoMedico:     summaries.doctor,
-                        resultadoPaciente:   summaries.patient,
-                        templateMedicoSnap:  doctorTemplate,
-                        templatePacienteSnap: patientTemplate,
-                        promptIaSnap:        systemPrompt,
-                        duracaoSegundos:     seconds,
-                    }).then(() => {
-                        // Atualiza a lista de consultas em background para estar pronta ao navegar
+            // ── Salva no Supabase como parte obrigatória do pipeline ──────────
+            // Usa await para garantir persistência antes de navegar para resultados.
+            // Se o createConsulta() ainda estava rodando em background (consulta curta),
+            // cria o registro agora mesmo como fallback.
+            if (window.DB) {
+                try {
+                    let supabaseId = currentSessionId
+                        ? SessionManager.getSupabaseId(currentSessionId)
+                        : null;
+
+                    // Fallback: cria a consulta agora se o ID ainda não chegou
+                    if (!supabaseId) {
+                        supabaseId = await DB.createConsulta();
+                        if (supabaseId && currentSessionId) {
+                            SessionManager.setSupabaseId(currentSessionId, supabaseId);
+                        }
+                    }
+
+                    if (supabaseId) {
+                        await DB.saveConsultaResults({
+                            patientName:          document.getElementById('patient-name-input')?.value.trim() || '',
+                            consultaId:           supabaseId,
+                            transcriptRascunho:   el.storedTranscript?.value || '',
+                            transcriptWhisper:    transcript,
+                            resultadoMedico:      summaries.doctor,
+                            resultadoPaciente:    summaries.patient,
+                            templateMedicoSnap:   doctorTemplate,
+                            templatePacienteSnap: patientTemplate,
+                            promptIaSnap:         systemPrompt,
+                            duracaoSegundos:      seconds,
+                        });
+
+                        // Upload de áudio permanece em background (arquivo grande, não bloqueia)
+                        if (window.lastAudioBlob && window.lastAudioBlob.size > 0) {
+                            DB.uploadAudio(supabaseId, window.lastAudioBlob).catch(() => {});
+                        }
+
+                        // Atualiza a lista para estar pronta quando o médico navegar
                         if (typeof window.loadConsultasList === 'function') {
                             window.loadConsultasList().catch(() => {});
                         }
-                    }).catch(() => {});
-
-                    if (window.lastAudioBlob && window.lastAudioBlob.size > 0) {
-                        DB.uploadAudio(supabaseId, window.lastAudioBlob).catch(() => {});
+                    } else {
+                        console.error('[MedNote] Não foi possível obter ID do Supabase para salvar a consulta.');
                     }
+                } catch (saveErr) {
+                    console.error('[MedNote] Erro ao salvar consulta no Supabase:', saveErr);
                 }
             }
+
+            setProgress('100%', 'Finalizado!');
 
             setTimeout(() => {
                 resetRecorder();

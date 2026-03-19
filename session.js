@@ -189,6 +189,14 @@ const SessionManager = (() => {
         _saveSessions(kept);
     }
 
+    /**
+     * Armazena manualmente o UUID do Supabase para um localId.
+     * Usado pelo pipeline de resultados quando createConsulta ainda estava em background.
+     */
+    function setSupabaseId(localId, supabaseId) {
+        _setSupabaseId(localId, supabaseId);
+    }
+
     return {
         createSession,
         updateStatus,
@@ -199,6 +207,7 @@ const SessionManager = (() => {
         getConsolidatedTranscript,
         finalizeSession,
         getSupabaseId,
+        setSupabaseId,
         cleanup,
     };
 })();
