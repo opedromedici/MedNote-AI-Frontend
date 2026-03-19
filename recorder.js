@@ -556,6 +556,21 @@ function initRecorder(app) {
         el.glow.classList.replace('bg-emerald-500/20', 'bg-emerald-500/0');
     }
 
+    // Reseta o estado visual do recorder para nova consulta.
+    // Chamado por results.js ao clicar em "Nova Consulta".
+    window.resetRecorderView = () => {
+        accumulatedTranscript = '';
+        currentSessionId      = null;
+        if (el.storedTranscript) {
+            el.storedTranscript.value = '';
+            localStorage.removeItem(TRANSCRIPT_STORAGE_KEY);
+        }
+        updateWordCount('');
+        enableGenerateButton(false);
+        setStatus('Aguardando gravação...', 'zinc');
+        if (el.liveTranscriptText) el.liveTranscriptText.innerHTML = '';
+    };
+
     // ── Mic error handler ─────────────────────────────────────────────────────
     function handleMicError(err) {
         const messages = {

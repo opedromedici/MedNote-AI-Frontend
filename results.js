@@ -169,6 +169,7 @@ function bindResultButtons() {
     btnNewRecord?.addEventListener('click', () => {
         const inp = document.getElementById('patient-name-input');
         if (inp) inp.value = '';
+        if (typeof window.resetRecorderView === 'function') window.resetRecorderView();
         if (window.appNavigateTo) window.appNavigateTo('record');
         else location.reload();
     }, { once: true });

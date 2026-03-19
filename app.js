@@ -63,13 +63,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         Object.values(views).forEach(view => {
             if (view) {
                 view.classList.add('hidden');
-                view.classList.remove('fade-in');
+                view.classList.remove('flex', 'fade-in');
             }
         });
 
         // Show target view
         views[pageId].classList.remove('hidden');
-        views[pageId].classList.add('fade-in');
+        views[pageId].classList.add('flex', 'fade-in');
 
         // Update nav styling
         Object.entries(navLinks).forEach(([key, link]) => {
