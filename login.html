@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedNote AI — Login</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } }
+        }
+    </script>
+
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body
+    class="flex min-h-screen bg-zinc-500 bg-cover bg-center selection:bg-slate-900 selection:text-white"
+    style="background-image: url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=2070&auto=format&fit=crop');">
+
+    <div class="fixed inset-0 bg-zinc-900/65 z-0"></div>
+
+    <div class="flex items-center justify-center w-full min-h-screen z-10 p-4">
+        <div class="glass-panel w-full max-w-md rounded-[2rem] border border-white/40 shadow-2xl overflow-hidden fade-in">
+
+            <!-- Brand Strip -->
+            <div class="bg-gradient-to-r from-emerald-500/20 to-emerald-600/10 border-b border-white/30 px-8 py-5 flex items-center gap-3">
+                <div class="flex text-white bg-gradient-to-b from-emerald-400 to-emerald-600 w-9 h-9 rounded-full items-center justify-center shadow-lg shadow-emerald-500/30 flex-shrink-0">
+                    <i class="ph-bold ph-stethoscope text-lg"></i>
+                </div>
+                <div>
+                    <span class="text-lg font-medium tracking-tight text-zinc-900">MedNote <span class="text-zinc-500">AI</span></span>
+                    <p class="text-[10px] text-zinc-500 uppercase tracking-widest font-medium">by GenLabs</p>
+                </div>
+            </div>
+
+            <div class="px-8 py-10">
+                <div class="mb-8">
+                    <h1 class="text-2xl font-medium text-zinc-900 tracking-tight mb-1">Bem-vindo de volta</h1>
+                    <p class="text-sm text-zinc-500">Acesse sua conta para continuar.</p>
+                </div>
+
+                <!-- Error -->
+                <div id="auth-error" class="hidden mb-5 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+                    <i class="ph ph-warning-circle text-base flex-shrink-0"></i>
+                    <span id="auth-error-text"></span>
+                </div>
+
+                <!-- Success -->
+                <div id="auth-success" class="hidden mb-5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+                    <i class="ph ph-check-circle text-base flex-shrink-0"></i>
+                    <span id="auth-success-text"></span>
+                </div>
+
+                <!-- Login Form -->
+                <form id="login-form" class="flex flex-col gap-4">
+                    <div class="flex flex-col gap-1.5">
+                        <label for="email" class="text-xs font-semibold text-zinc-600 uppercase tracking-wider">E-mail</label>
+                        <div class="relative">
+                            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"><i class="ph ph-envelope text-base"></i></span>
+                            <input id="email" type="email" autocomplete="email" placeholder="seu@email.com"
+                                class="w-full pl-10 pr-4 py-3 bg-white/70 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all" required />
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-1.5">
+                        <div class="flex justify-between items-center">
+                            <label for="password" class="text-xs font-semibold text-zinc-600 uppercase tracking-wider">Senha</label>
+                            <button type="button" id="btn-forgot" class="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors">Esqueceu a senha?</button>
+                        </div>
+                        <div class="relative">
+                            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"><i class="ph ph-lock-simple text-base"></i></span>
+                            <input id="password" type="password" autocomplete="current-password" placeholder="••••••••"
+                                class="w-full pl-10 pr-11 py-3 bg-white/70 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all" required />
+                            <button type="button" id="btn-toggle-password" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition-colors">
+                                <i id="icon-eye" class="ph ph-eye text-base"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btn-login"
+                        class="mt-2 w-full py-3.5 px-6 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 text-white font-semibold text-sm shadow-lg shadow-emerald-500/30 hover:from-emerald-500 hover:to-emerald-700 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 flex items-center justify-center gap-2">
+                        <span id="btn-login-text">Entrar</span>
+                        <div id="btn-login-spinner" class="hidden processing-spinner !w-4 !h-4 border-white/30 border-t-white"></div>
+                    </button>
+                </form>
+
+                <!-- Forgot Password Form -->
+                <form id="forgot-form" class="hidden flex-col gap-4">
+                    <p class="text-sm text-zinc-500 mb-1">Informe seu e-mail para receber o link de redefinição.</p>
+                    <div class="flex flex-col gap-1.5">
+                        <label for="reset-email" class="text-xs font-semibold text-zinc-600 uppercase tracking-wider">E-mail</label>
+                        <div class="relative">
+                            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"><i class="ph ph-envelope text-base"></i></span>
+                            <input id="reset-email" type="email" placeholder="seu@email.com"
+                                class="w-full pl-10 pr-4 py-3 bg-white/70 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all" required />
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-1">
+                        <button type="button" id="btn-back-to-login"
+                            class="flex-1 py-3 px-4 rounded-xl border border-zinc-200 bg-white/60 text-zinc-700 font-medium text-sm hover:bg-white transition-all">Voltar</button>
+                        <button type="submit" id="btn-reset"
+                            class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-b from-emerald-400 to-emerald-600 text-white font-semibold text-sm shadow-md shadow-emerald-500/20 hover:from-emerald-500 hover:to-emerald-700 transition-all flex items-center justify-center gap-2">
+                            <span>Enviar</span>
+                            <div id="btn-reset-spinner" class="hidden processing-spinner !w-4 !h-4 border-white/30 border-t-white"></div>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="flex items-center gap-3 my-6">
+                    <div class="flex-1 h-px bg-zinc-200"></div>
+                    <span class="text-xs text-zinc-400 font-medium">ou</span>
+                    <div class="flex-1 h-px bg-zinc-200"></div>
+                </div>
+
+                <p class="text-center text-sm text-zinc-500">
+                    Não tem uma conta?
+                    <a href="register.html" class="text-emerald-600 hover:text-emerald-700 font-semibold transition-colors">Criar conta</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script src="auth.js"></script>
+    <script>
+        // Toggle password visibility
+        document.getElementById('btn-toggle-password').addEventListener('click', () => {
+            const input = document.getElementById('password');
+            const icon = document.getElementById('icon-eye');
+            if (input.type === 'password') { input.type = 'text'; icon.className = 'ph ph-eye-slash text-base'; }
+            else { input.type = 'password'; icon.className = 'ph ph-eye text-base'; }
+        });
+
+        // Toggle forgot form
+        document.getElementById('btn-forgot').addEventListener('click', () => {
+            clearMessages();
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('forgot-form').classList.remove('hidden');
+            document.getElementById('forgot-form').classList.add('flex');
+        });
+        document.getElementById('btn-back-to-login').addEventListener('click', () => {
+            clearMessages();
+            document.getElementById('forgot-form').classList.add('hidden');
+            document.getElementById('forgot-form').classList.remove('flex');
+            document.getElementById('login-form').classList.remove('hidden');
+        });
+
+        function clearMessages() {
+            document.getElementById('auth-error').classList.add('hidden');
+            document.getElementById('auth-success').classList.add('hidden');
+        }
+        function showError(msg) {
+            document.getElementById('auth-error-text').textContent = msg;
+            document.getElementById('auth-error').classList.remove('hidden');
+            document.getElementById('auth-success').classList.add('hidden');
+        }
+        function showSuccess(msg) {
+            document.getElementById('auth-success-text').textContent = msg;
+            document.getElementById('auth-success').classList.remove('hidden');
+            document.getElementById('auth-error').classList.add('hidden');
+        }
+
+        // Login submit
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessages();
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('btn-login');
+            btn.disabled = true;
+            document.getElementById('btn-login-text').textContent = 'Entrando...';
+            document.getElementById('btn-login-spinner').classList.remove('hidden');
+
+            const { error } = await AuthModule.signIn(email, password);
+
+            btn.disabled = false;
+            document.getElementById('btn-login-text').textContent = 'Entrar';
+            document.getElementById('btn-login-spinner').classList.add('hidden');
+
+            if (error) showError(AuthModule.friendlyError(error));
+            else window.location.href = 'index.html';
+        });
+
+        // Forgot password submit
+        document.getElementById('forgot-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            clearMessages();
+            const email = document.getElementById('reset-email').value.trim();
+            const btn = document.getElementById('btn-reset');
+            btn.disabled = true;
+            document.getElementById('btn-reset-spinner').classList.remove('hidden');
+
+            const { error } = await AuthModule.resetPassword(email);
+
+            btn.disabled = false;
+            document.getElementById('btn-reset-spinner').classList.add('hidden');
+
+            if (error) showError(AuthModule.friendlyError(error));
+            else {
+                showSuccess('E-mail enviado! Verifique sua caixa de entrada.');
+                document.getElementById('forgot-form').classList.add('hidden');
+                document.getElementById('forgot-form').classList.remove('flex');
+                document.getElementById('login-form').classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+
+</html>

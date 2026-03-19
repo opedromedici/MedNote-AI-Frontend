@@ -1,6 +1,34 @@
 // MedNote AI - Application Core
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+    // Verifica autenticação — redireciona para login se não autenticado
+    const session = await AuthModule.requireAuth();
+    if (!session) return;
+
+    // Preenche dados do usuário no sidebar
+    const meta = session.user?.user_metadata ?? {};
+    const fullName = meta.full_name ?? session.user?.email ?? 'Usuário';
+    const specialty = meta.specialty ?? '';
+    const avatarName = encodeURIComponent(fullName.replace(/^Dr\.?\s*/i, '').trim() || 'U');
+
+    const elName = document.getElementById('user-name');
+    const elSpecialty = document.getElementById('user-specialty');
+    const elAvatar = document.getElementById('user-avatar');
+    if (elName) elName.textContent = fullName;
+    if (elSpecialty) elSpecialty.textContent = specialty;
+    if (elAvatar) elAvatar.src = `https://ui-avatars.com/api/?name=${avatarName}&background=10B981&color=fff`;
+
+    // Botão de logout
+    const btnLogout = document.getElementById('btn-logout');
+    if (btnLogout) {
+        btnLogout.addEventListener('click', async () => {
+            btnLogout.disabled = true;
+            btnLogout.innerHTML = '<i class="ph ph-spinner text-base animate-spin"></i> Saindo...';
+            await AuthModule.signOut();
+            window.location.href = 'login.html';
+        });
+    }
+
     // Current state
     const AppState = {
         currentPage: 'record', // 'record', 'templates', 'prompt', 'results'
