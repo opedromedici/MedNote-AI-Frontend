@@ -361,6 +361,12 @@ function initRecorder(app) {
         }
         localStorage.setItem(TRANSCRIPT_STORAGE_KEY, draft);
 
+        // Salva rascunho no Supabase (background)
+        if (window.DB && currentSessionId) {
+            const supabaseId = SessionManager.getSupabaseId(currentSessionId);
+            if (supabaseId) DB.saveTranscriptDraft(supabaseId, draft).catch(() => {});
+        }
+
         setStatus('Gravação encerrada — clique em "Gerar Resumo" para processar', 'emerald');
         enableGenerateButton(true);
 
@@ -476,6 +482,28 @@ function initRecorder(app) {
 
             setProgress('90%', 'Gerando Resumo do Paciente (GPT-4o)...');
             setProgress('100%', 'Finalizado!');
+
+            // Salva resultados completos e áudio no Supabase (background)
+            if (window.DB && currentSessionId) {
+                const supabaseId = SessionManager.getSupabaseId(currentSessionId);
+                if (supabaseId) {
+                    DB.saveConsultaResults({
+                        consultaId:          supabaseId,
+                        transcriptRascunho:  el.storedTranscript?.value || '',
+                        transcriptWhisper:   transcript,
+                        resultadoMedico:     summaries.doctor,
+                        resultadoPaciente:   summaries.patient,
+                        templateMedicoSnap:  doctorTemplate,
+                        templatePacienteSnap: patientTemplate,
+                        promptIaSnap:        systemPrompt,
+                        duracaoSegundos:     seconds,
+                    }).catch(() => {});
+
+                    if (window.lastAudioBlob && window.lastAudioBlob.size > 0) {
+                        DB.uploadAudio(supabaseId, window.lastAudioBlob).catch(() => {});
+                    }
+                }
+            }
 
             setTimeout(() => {
                 resetRecorder();

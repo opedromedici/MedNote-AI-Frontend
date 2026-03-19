@@ -1,12 +1,13 @@
 // MedNote AI - AI Prompt Configuration Module (prompt.js)
+// Carrega do Supabase (profiles) na inicialização; salva em localStorage + Supabase.
 
 function initPrompt() {
     const el = {
-        textarea: document.getElementById('ai-system-prompt'),
-        btnSave: document.getElementById('btn-save-prompt'),
-        btnClear: document.getElementById('btn-clear-prompt'),
-        charCount: document.getElementById('prompt-char-count'),
-        presets: document.querySelectorAll('.preset-btn')
+        textarea:   document.getElementById('ai-system-prompt'),
+        btnSave:    document.getElementById('btn-save-prompt'),
+        btnClear:   document.getElementById('btn-clear-prompt'),
+        charCount:  document.getElementById('prompt-char-count'),
+        presets:    document.querySelectorAll('.preset-btn')
     };
 
     if (!el.textarea) return;
@@ -86,26 +87,21 @@ function initPrompt() {
 - No resumo ao paciente, explique as lesões em linguagem acessível, demonstre o passo a passo de aplicação dos produtos e reforce a importância da fotoproteção diária`
     };
 
-    // Load saved prompt or leave blank
-    function loadPrompt() {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            el.textarea.value = saved;
-            updateCharCount();
-        }
-    }
-
-    // Update character counter
     function updateCharCount() {
         el.charCount.textContent = el.textarea.value.length.toLocaleString('pt-BR');
     }
 
-    // Apply preset and highlight active button
+    function clearPresetHighlight() {
+        el.presets.forEach(btn => {
+            btn.classList.remove('border-violet-500', 'bg-violet-50', 'text-violet-700');
+            btn.classList.add('border-zinc-200', 'bg-white', 'text-zinc-600');
+        });
+    }
+
     function applyPreset(presetKey) {
         if (!PRESETS[presetKey]) return;
         el.textarea.value = PRESETS[presetKey];
         updateCharCount();
-
         el.presets.forEach(btn => {
             if (btn.dataset.preset === presetKey) {
                 btn.classList.add('border-violet-500', 'bg-violet-50', 'text-violet-700');
@@ -117,47 +113,57 @@ function initPrompt() {
         });
     }
 
-    // Clear active preset highlight
-    function clearPresetHighlight() {
-        el.presets.forEach(btn => {
-            btn.classList.remove('border-violet-500', 'bg-violet-50', 'text-violet-700');
-            btn.classList.add('border-zinc-200', 'bg-white', 'text-zinc-600');
-        });
+    // Carrega prompt: localStorage imediato, depois sincroniza com Supabase
+    async function loadPrompt() {
+        // 1. Mostra localStorage imediatamente
+        const cached = localStorage.getItem(STORAGE_KEY);
+        if (cached) { el.textarea.value = cached; updateCharCount(); }
+
+        // 2. Tenta Supabase e atualiza se houver dado
+        if (!window.DB) return;
+        try {
+            const profile = await DB.loadProfile();
+            if (profile?.ai_system_prompt) {
+                el.textarea.value = profile.ai_system_prompt;
+                localStorage.setItem(STORAGE_KEY, profile.ai_system_prompt);
+                updateCharCount();
+            }
+        } catch (_) {}
     }
 
-    // Save with visual feedback
+    // Salva em localStorage e Supabase
     el.btnSave.addEventListener('click', () => {
         localStorage.setItem(STORAGE_KEY, el.textarea.value);
+
+        // Supabase (background)
+        if (window.DB) {
+            DB.saveProfile({ ai_system_prompt: el.textarea.value }).catch(() => {});
+        }
 
         const original = el.btnSave.innerHTML;
         el.btnSave.innerHTML = `<i class="ph ph-check"></i> Salvo!`;
         el.btnSave.classList.replace('bg-zinc-900', 'bg-violet-600');
-
         setTimeout(() => {
             el.btnSave.innerHTML = original;
             el.btnSave.classList.replace('bg-violet-600', 'bg-zinc-900');
         }, 2000);
     });
 
-    // Clear textarea
     el.btnClear.addEventListener('click', () => {
         el.textarea.value = '';
         updateCharCount();
         clearPresetHighlight();
     });
 
-    // Preset buttons
     el.presets.forEach(btn => {
         btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
     });
 
-    // Live char counter
     el.textarea.addEventListener('input', () => {
         updateCharCount();
         clearPresetHighlight();
     });
 
-    // Expose getter for other modules (recorder, results)
     window.getAISystemPrompt = () => localStorage.getItem(STORAGE_KEY) || '';
 
     loadPrompt();

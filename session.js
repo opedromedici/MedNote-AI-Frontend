@@ -1,10 +1,11 @@
 // MedNote AI — Session Manager (session.js)
-// Persiste consultas e chunks de transcrição no localStorage.
-// Garante que nenhuma transcrição seja perdida em caso de refresh.
+// localStorage = fallback imediato (nunca perde transcrição).
+// Supabase = fonte de verdade (sincronizado em background via DB module).
 
 const SessionManager = (() => {
-    const SESSIONS_KEY  = 'mednote_sessions';
-    const CHUNKS_PREFIX = 'mednote_chunks_';
+    const SESSIONS_KEY    = 'mednote_sessions';
+    const CHUNKS_PREFIX   = 'mednote_chunks_';
+    const SUPABASE_PREFIX = 'mednote_supabase_id_'; // mapeia localId → uuid do Supabase
 
     // ── Helpers internos ──────────────────────────────────────────────────────
 
@@ -35,10 +36,25 @@ const SessionManager = (() => {
         }
     }
 
+    // Mapeamento localId ↔ UUID do Supabase
+    function _getSupabaseId(localId) {
+        return localStorage.getItem(SUPABASE_PREFIX + localId) || null;
+    }
+
+    function _setSupabaseId(localId, supabaseId) {
+        if (supabaseId) localStorage.setItem(SUPABASE_PREFIX + localId, supabaseId);
+    }
+
+    function _removeSupabaseId(localId) {
+        localStorage.removeItem(SUPABASE_PREFIX + localId);
+    }
+
+
     // ── API pública ───────────────────────────────────────────────────────────
 
     /**
      * Cria uma nova consulta com status 'em_andamento'.
+     * Persiste no localStorage imediatamente e cria no Supabase em background.
      * @returns {Object} sessão criada
      */
     function createSession() {
@@ -49,13 +65,19 @@ const SessionManager = (() => {
         sessions.push(session);
         _saveSessions(sessions);
         _saveChunks(id, []);
+
+        // Cria no Supabase em background e armazena o UUID para uso futuro
+        if (window.DB) {
+            DB.createConsulta()
+                .then(supabaseId => _setSupabaseId(id, supabaseId))
+                .catch(() => {});
+        }
+
         return session;
     }
 
     /**
      * Atualiza o status de uma consulta.
-     * @param {string} sessionId
-     * @param {'em_andamento'|'pausada'|'finalizada'} status
      */
     function updateStatus(sessionId, status) {
         const sessions = _getSessions();
@@ -64,13 +86,17 @@ const SessionManager = (() => {
         sessions[idx].status     = status;
         sessions[idx].updated_at = new Date().toISOString();
         _saveSessions(sessions);
+
+        // Sync Supabase em background
+        if (window.DB) {
+            const supabaseId = _getSupabaseId(sessionId);
+            if (supabaseId) DB.updateConsultaStatus(supabaseId, status).catch(() => {});
+        }
     }
 
     /**
-     * Persiste um chunk de transcrição imediatamente.
-     * @param {string} sessionId
-     * @param {string} texto
-     * @returns {Object|null} chunk salvo, ou null se texto vazio
+     * Persiste um chunk de transcrição imediatamente no localStorage
+     * e envia ao Supabase em background.
      */
     function saveChunk(sessionId, texto) {
         if (!texto?.trim()) return null;
@@ -85,15 +111,28 @@ const SessionManager = (() => {
         chunks.push(chunk);
         _saveChunks(sessionId, chunks);
         _touchSession(sessionId);
+
+        // Sync Supabase em background
+        if (window.DB) {
+            const supabaseId = _getSupabaseId(sessionId);
+            if (supabaseId) DB.saveChunk(supabaseId, chunk.ordem, chunk.texto).catch(() => {});
+        }
+
         return chunk;
     }
 
     /**
-     * Limpa todos os chunks de uma sessão (usado em "Limpar transcrição").
+     * Limpa todos os chunks de uma sessão.
      */
     function clearChunks(sessionId) {
         _saveChunks(sessionId, []);
         _touchSession(sessionId);
+
+        // Sync Supabase em background
+        if (window.DB) {
+            const supabaseId = _getSupabaseId(sessionId);
+            if (supabaseId) DB.deleteChunks(supabaseId).catch(() => {});
+        }
     }
 
     /**
@@ -114,7 +153,6 @@ const SessionManager = (() => {
 
     /**
      * Concatena todos os chunks em uma transcrição consolidada.
-     * É sempre esta versão que deve alimentar a geração de resumos.
      */
     function getConsolidatedTranscript(sessionId) {
         return getChunks(sessionId).map(c => c.texto).join(' ').trim();
@@ -128,14 +166,22 @@ const SessionManager = (() => {
     }
 
     /**
-     * Remove sessões finalizadas com mais de 7 dias para não lotar o localStorage.
-     * Chamado automaticamente no init do recorder.
+     * Retorna o UUID do Supabase mapeado para um localId.
+     * Usado por recorder.js para salvar resultados e áudio.
+     */
+    function getSupabaseId(localId) {
+        return _getSupabaseId(localId);
+    }
+
+    /**
+     * Remove sessões finalizadas com mais de 7 dias.
      */
     function cleanup() {
         const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
         const kept   = _getSessions().filter(s => {
             if (s.status === 'finalizada' && new Date(s.updated_at).getTime() < cutoff) {
                 localStorage.removeItem(CHUNKS_PREFIX + s.id);
+                _removeSupabaseId(s.id);
                 return false;
             }
             return true;
@@ -152,6 +198,7 @@ const SessionManager = (() => {
         getChunks,
         getConsolidatedTranscript,
         finalizeSession,
+        getSupabaseId,
         cleanup,
     };
 })();

@@ -1,15 +1,15 @@
 // MedNote AI - Templates Management Module (templates.js)
+// Carrega do Supabase (profiles) na inicialização; salva em localStorage + Supabase.
 
 function initTemplates() {
     const el = {
-        btnSave: document.getElementById('btn-save-templates'),
-        txtDoctor: document.getElementById('template-doctor'),
+        btnSave:    document.getElementById('btn-save-templates'),
+        txtDoctor:  document.getElementById('template-doctor'),
         txtPatient: document.getElementById('template-patient')
     };
 
     if (!el.btnSave) return;
 
-    // Default Templates implementation based on PRD 17.9
     const defaultDoctorTemplate = `Formato Clínico Estruturado:
 
 1. Queixa Principal:
@@ -31,25 +31,46 @@ function initTemplates() {
 
 (Usar linguagem acolhedora, clara e tom empático, sem jargões.)`;
 
-    // Load from LocalStorage or inject Defaults
-    function loadTemplates() {
-        const savedDoctor = localStorage.getItem('mednote_template_doctor');
-        const savedPatient = localStorage.getItem('mednote_template_patient');
+    // Carrega templates: localStorage imediato, depois sincroniza com Supabase
+    async function loadTemplates() {
+        // 1. Mostra localStorage imediatamente (sem espera)
+        const cachedDoctor  = localStorage.getItem('mednote_template_doctor');
+        const cachedPatient = localStorage.getItem('mednote_template_patient');
+        el.txtDoctor.value  = cachedDoctor  || defaultDoctorTemplate;
+        el.txtPatient.value = cachedPatient || defaultPatientTemplate;
 
-        el.txtDoctor.value = savedDoctor || defaultDoctorTemplate;
-        el.txtPatient.value = savedPatient || defaultPatientTemplate;
+        // 2. Tenta carregar do Supabase e atualiza se houver dados mais recentes
+        if (!window.DB) return;
+        try {
+            const profile = await DB.loadProfile();
+            if (profile?.template_medico) {
+                el.txtDoctor.value = profile.template_medico;
+                localStorage.setItem('mednote_template_doctor', profile.template_medico);
+            }
+            if (profile?.template_paciente) {
+                el.txtPatient.value = profile.template_paciente;
+                localStorage.setItem('mednote_template_patient', profile.template_paciente);
+            }
+        } catch (_) {}
     }
 
-    // Save Action
+    // Salva em localStorage e sincroniza com Supabase
     el.btnSave.addEventListener('click', () => {
-        // Visual feedback
         const originalText = el.btnSave.innerHTML;
         el.btnSave.innerHTML = `<i class="ph ph-check"></i> Salvo!`;
         el.btnSave.classList.replace('bg-zinc-900', 'bg-emerald-600');
 
-        // Persist
-        localStorage.setItem('mednote_template_doctor', el.txtDoctor.value);
+        // localStorage (imediato)
+        localStorage.setItem('mednote_template_doctor',  el.txtDoctor.value);
         localStorage.setItem('mednote_template_patient', el.txtPatient.value);
+
+        // Supabase (background)
+        if (window.DB) {
+            DB.saveProfile({
+                template_medico:   el.txtDoctor.value,
+                template_paciente: el.txtPatient.value,
+            }).catch(() => {});
+        }
 
         setTimeout(() => {
             el.btnSave.innerHTML = originalText;
@@ -57,6 +78,5 @@ function initTemplates() {
         }, 2000);
     });
 
-    // Initialize module by loading existing data
     loadTemplates();
 }
