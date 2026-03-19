@@ -92,6 +92,7 @@ const DB = (() => {
     }
 
     async function saveConsultaResults({
+        patientName,
         consultaId, transcriptRascunho, transcriptWhisper,
         resultadoMedico, resultadoPaciente,
         templateMedicoSnap, templatePacienteSnap, promptIaSnap,
@@ -103,6 +104,7 @@ const DB = (() => {
             .from('consultas')
             .update({
                 status:                 'finalizada',
+                patient_name:           patientName ?? null,
                 duracao_segundos:       duracaoSegundos ?? 0,
                 transcript_rascunho:    transcriptRascunho  ?? null,
                 transcript_whisper:     transcriptWhisper   ?? null,
@@ -114,6 +116,22 @@ const DB = (() => {
             })
             .eq('id', consultaId);
         if (error) console.warn('[DB] saveConsultaResults:', error.message);
+    }
+
+    async function listConsultas(search = '') {
+        const userId = await getUserId();
+        if (!userId) return [];
+        const client = await getClient();
+        let query = client
+            .from('consultas')
+            .select('id, patient_name, status, duracao_segundos, created_at, resultado_medico, resultado_paciente, transcript_whisper, transcript_rascunho')
+            .eq('user_id', userId)
+            .eq('status', 'finalizada')
+            .order('created_at', { ascending: false });
+        if (search.trim()) query = query.ilike('patient_name', `%${search.trim()}%`);
+        const { data, error } = await query;
+        if (error) { console.warn('[DB] listConsultas:', error.message); return []; }
+        return data ?? [];
     }
 
 
@@ -168,6 +186,7 @@ const DB = (() => {
         updateConsultaStatus,
         saveTranscriptDraft,
         saveConsultaResults,
+        listConsultas,
         saveChunk,
         deleteChunks,
         uploadAudio,

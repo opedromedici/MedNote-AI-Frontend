@@ -488,6 +488,7 @@ function initRecorder(app) {
                 const supabaseId = SessionManager.getSupabaseId(currentSessionId);
                 if (supabaseId) {
                     DB.saveConsultaResults({
+                        patientName:         document.getElementById('patient-name-input')?.value.trim() || '',
                         consultaId:          supabaseId,
                         transcriptRascunho:  el.storedTranscript?.value || '',
                         transcriptWhisper:   transcript,

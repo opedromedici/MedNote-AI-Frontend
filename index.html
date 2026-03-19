@@ -67,6 +67,11 @@
                     <i class="ph ph-brain text-lg"></i>
                     Instruções da IA
                 </a>
+                <a href="#" id="nav-consultas"
+                    class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900">
+                    <i class="ph ph-clock-counter-clockwise text-lg"></i>
+                    Consultas
+                </a>
             </nav>
 
             <!-- User Status -->
@@ -110,10 +115,19 @@
             <!-- VIEW: RECORDING (Dashboard) -->
             <div id="view-record" class="flex flex-col p-8 lg:p-12 w-full max-w-5xl mx-auto h-full fade-in">
                 <!-- Recording view injected via JS or written directly here -->
-                <div class="mb-10">
-                    <h1 class="text-3xl font-medium text-zinc-900 tracking-tighter mb-2">Nova Consulta</h1>
-                    <p class="text-sm text-zinc-500 font-medium">Grave o áudio da sua consulta para gerar relatórios
-                        automatizados via IA.</p>
+                <div class="mb-6">
+                    <h1 class="text-3xl font-medium text-zinc-900 tracking-tighter mb-1">Nova Consulta</h1>
+                    <p class="text-sm text-zinc-500 font-medium">Grave o áudio da sua consulta para gerar relatórios automatizados via IA.</p>
+                </div>
+
+                <!-- Patient Name Field -->
+                <div class="mb-6">
+                    <label for="patient-name-input" class="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <i class="ph ph-user-circle text-sm"></i> Nome do Paciente
+                    </label>
+                    <input id="patient-name-input" type="text" autocomplete="off"
+                        placeholder="Digite o nome completo do paciente..."
+                        class="w-full px-4 py-3 bg-white/80 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm" />
                 </div>
 
                 <!-- Main Recording Card -->
@@ -437,6 +451,26 @@
                 </div>
             </div>
 
+            <!-- VIEW: CONSULTAS (Histórico) -->
+            <div id="view-consultas" class="hidden flex-col p-8 lg:p-12 w-full max-w-5xl mx-auto h-full fade-in">
+                <div class="mb-6">
+                    <h1 class="text-3xl font-medium text-zinc-900 tracking-tighter mb-1">Consultas</h1>
+                    <p class="text-sm text-zinc-500 font-medium">Histórico de consultas e resumos por paciente.</p>
+                </div>
+
+                <!-- Search -->
+                <div class="relative mb-6">
+                    <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none">
+                        <i class="ph ph-magnifying-glass text-base"></i>
+                    </span>
+                    <input id="consultas-search" type="text" placeholder="Buscar por nome do paciente..."
+                        class="w-full pl-10 pr-4 py-3 bg-white/80 border border-zinc-200 rounded-xl text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition-all shadow-sm" />
+                </div>
+
+                <!-- List (populated by consultas.js) -->
+                <div id="consultas-list" class="flex flex-col gap-4 pb-10"></div>
+            </div>
+
         </section>
     </main>
 
@@ -451,6 +485,7 @@
     <script src="templates.js"></script>
     <script src="results.js"></script>
     <script src="prompt.js"></script>
+    <script src="consultas.js"></script>
 </body>
 
 </html>

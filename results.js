@@ -166,7 +166,12 @@ function bindResultButtons() {
     btnDownloadDoctor?.addEventListener('click',  () => downloadAsPDF('Prontuário Médico', _doctorText));
     btnCopyPatient?.addEventListener('click',     () => copyToClipboard(_patientText, btnCopyPatient));
     btnDownloadPatient?.addEventListener('click', () => downloadAsPDF('Resumo do Paciente', _patientText));
-    btnNewRecord?.addEventListener('click', () => location.reload(), { once: true });
+    btnNewRecord?.addEventListener('click', () => {
+        const inp = document.getElementById('patient-name-input');
+        if (inp) inp.value = '';
+        if (window.appNavigateTo) window.appNavigateTo('record');
+        else location.reload();
+    }, { once: true });
 }
 
 // ── Renderiza resultados reais (GPT-4o) ───────────────────────────────────────

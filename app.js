@@ -44,13 +44,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         record: document.getElementById('view-record'),
         templates: document.getElementById('view-templates'),
         prompt: document.getElementById('view-prompt'),
-        results: document.getElementById('view-results')
+        results: document.getElementById('view-results'),
+        consultas: document.getElementById('view-consultas')
     };
 
     const navLinks = {
         record: document.getElementById('nav-record'),
         templates: document.getElementById('nav-templates'),
-        prompt: document.getElementById('nav-prompt')
+        prompt: document.getElementById('nav-prompt'),
+        consultas: document.getElementById('nav-consultas')
     };
 
     // Navigation Logic
@@ -86,16 +88,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         AppState.currentPage = pageId;
     }
 
+    // Expõe navigateTo globalmente para uso em outros módulos
+    window.appNavigateTo = navigateTo;
+
     // Event Listeners for Navigation
     if (navLinks.record) navLinks.record.addEventListener('click', (e) => { e.preventDefault(); navigateTo('record'); });
     if (navLinks.templates) navLinks.templates.addEventListener('click', (e) => { e.preventDefault(); navigateTo('templates'); });
     if (navLinks.prompt) navLinks.prompt.addEventListener('click', (e) => { e.preventDefault(); navigateTo('prompt'); });
+    if (navLinks.consultas) navLinks.consultas.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigateTo('consultas');
+        if (typeof loadConsultasList === 'function') loadConsultasList();
+    });
 
     // Initialize Modules (To be defined in respective files, but called here if needed)
     if (typeof initRecorder === 'function') initRecorder({ navigateTo });
     if (typeof initTemplates === 'function') initTemplates();
     if (typeof initResults === 'function') initResults();
     if (typeof initPrompt === 'function') initPrompt();
+    if (typeof initConsultas === 'function') initConsultas();
 
     // Set initial view
     navigateTo('record');
