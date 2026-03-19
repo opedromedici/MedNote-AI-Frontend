@@ -185,8 +185,16 @@ function initRecorder(app) {
 
     function updateLiveBox(final, interim) {
         if (!el.liveTranscriptText) return;
-        el.liveTranscriptText.innerHTML =
-            `<span>${final}</span><span class="text-zinc-400 italic">${interim}</span>`;
+        // Usa DOM em vez de innerHTML para evitar que caracteres médicos (<, >, &)
+        // quebrem o HTML e façam texto desaparecer da transcrição ao vivo.
+        el.liveTranscriptText.textContent = '';
+        const spanFinal = document.createElement('span');
+        spanFinal.textContent = final;
+        const spanInterim = document.createElement('span');
+        spanInterim.className = 'text-zinc-400 italic';
+        spanInterim.textContent = interim;
+        el.liveTranscriptText.appendChild(spanFinal);
+        el.liveTranscriptText.appendChild(spanInterim);
         if (el.liveTranscriptBox)
             el.liveTranscriptBox.scrollTop = el.liveTranscriptBox.scrollHeight;
     }
@@ -352,9 +360,13 @@ function initRecorder(app) {
         mediaStream?.getTracks().forEach(t => t.stop());
         mediaStream = null;
 
-        // O texto do SpeechRecognition serve apenas de rascunho visual
-        // O Whisper vai transcrever com precisão ao clicar em "Gerar Resumo"
-        const draft = accumulatedTranscript.trim();
+        // O texto do SpeechRecognition serve apenas de rascunho visual.
+        // Usa os chunks consolidados do SessionManager como fonte primária —
+        // são salvos atomicamente durante toda a gravação e são mais completos.
+        const chunksDraft = currentSessionId
+            ? SessionManager.getConsolidatedTranscript(currentSessionId)
+            : '';
+        const draft = (chunksDraft || accumulatedTranscript).trim();
         if (el.storedTranscript) {
             el.storedTranscript.value = draft;
             updateWordCount(draft);
@@ -463,8 +475,12 @@ function initRecorder(app) {
                 setStatus('Transcrição Whisper concluída', 'emerald');
 
             } else {
-                // Sem áudio: usa o texto do campo (digitado manualmente ou sessão anterior)
-                transcript = el.storedTranscript?.value.trim() || '';
+                // Sem áudio: lê TODOS os chunks da sessão atual (fonte mais completa),
+                // com fallback para o campo de texto (edição manual ou sessão anterior).
+                const chunksTranscript = currentSessionId
+                    ? SessionManager.getConsolidatedTranscript(currentSessionId)
+                    : '';
+                transcript = chunksTranscript || el.storedTranscript?.value.trim() || '';
             }
 
             if (!transcript) {
