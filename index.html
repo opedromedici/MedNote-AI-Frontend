@@ -228,8 +228,74 @@
                     </div>
                 </div>
 
+                <!-- Divider -->
+                <div class="flex items-center gap-4 my-4">
+                    <div class="flex-grow h-px bg-zinc-200/70"></div>
+                    <span class="text-xs text-zinc-400 font-medium uppercase tracking-widest">ou envie uma gravação</span>
+                    <div class="flex-grow h-px bg-zinc-200/70"></div>
+                </div>
+
+                <!-- Upload Audio Card -->
+                <div id="upload-audio-card" class="glass-card bg-white/80 w-full rounded-2xl border border-zinc-200/50 shadow-sm overflow-hidden mb-2">
+                    <div class="flex items-center gap-3 px-6 py-4 border-b border-zinc-100">
+                        <div class="w-7 h-7 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-600">
+                            <i class="ph ph-upload-simple text-sm"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-semibold text-zinc-900 leading-none">Enviar Gravação de Áudio</h3>
+                            <p class="text-[11px] text-zinc-400 mt-0.5">Processe um áudio existente e vincule ao paciente acima</p>
+                        </div>
+                    </div>
+
+                    <div class="p-6">
+                        <!-- Drop zone -->
+                        <label id="upload-drop-zone" for="audio-file-input"
+                            class="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-zinc-200 rounded-xl py-8 px-4 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition-all group">
+                            <div class="w-12 h-12 rounded-full bg-zinc-100 group-hover:bg-emerald-100 flex items-center justify-center transition-colors">
+                                <i class="ph ph-waveform text-2xl text-zinc-400 group-hover:text-emerald-500 transition-colors"></i>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-sm font-medium text-zinc-700">Clique para selecionar ou arraste o áudio aqui</p>
+                                <p class="text-xs text-zinc-400 mt-1">MP3, M4A, WAV, WebM, OGG · máx. 25 MB</p>
+                            </div>
+                            <input id="audio-file-input" type="file" class="hidden" accept="audio/*,.mp3,.m4a,.wav,.webm,.ogg,.mp4" />
+                        </label>
+
+                        <!-- Arquivo selecionado (oculto por padrão) -->
+                        <div id="upload-file-selected" class="hidden mt-3 items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                            <i class="ph ph-file-audio text-emerald-500 text-xl shrink-0"></i>
+                            <div class="flex-grow min-w-0">
+                                <p id="upload-file-name" class="text-sm font-medium text-zinc-900 truncate"></p>
+                                <p id="upload-file-size" class="text-xs text-zinc-400 mt-0.5"></p>
+                            </div>
+                            <button id="upload-file-clear" title="Remover arquivo"
+                                class="p-1.5 text-zinc-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shrink-0">
+                                <i class="ph ph-x text-sm"></i>
+                            </button>
+                        </div>
+
+                        <!-- Erro de upload (oculto por padrão) -->
+                        <div id="upload-error-banner" class="hidden mt-3 items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl px-4 py-3">
+                            <i class="ph ph-warning-circle text-base shrink-0"></i>
+                            <span id="upload-error-text"></span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center justify-between px-6 py-3 border-t border-zinc-100 bg-zinc-50/50">
+                        <p class="text-[11px] text-zinc-400 flex items-center gap-1.5">
+                            <i class="ph ph-info"></i>
+                            O nome do paciente acima será vinculado a esta gravação
+                        </p>
+                        <button id="btn-process-upload"
+                            class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-4 rounded-full shadow-sm transition-all hover:-translate-y-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+                            disabled>
+                            <i class="ph ph-sparkle"></i> Processar Áudio
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Transcription Storage Card -->
-                <div class="mt-6 glass-card bg-white/80 w-full rounded-2xl border border-zinc-200/50 shadow-lg overflow-hidden">
+                <div class="mt-2 glass-card bg-white/80 w-full rounded-2xl border border-zinc-200/50 shadow-lg overflow-hidden">
                     <!-- Card Header -->
                     <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-100">
                         <div class="flex items-center gap-3">

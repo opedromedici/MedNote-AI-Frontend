@@ -428,6 +428,132 @@ function initRecorder(app) {
         });
     }
 
+    // ── Upload de Áudio ───────────────────────────────────────────────────────
+    const elUp = {
+        card:         document.getElementById('upload-audio-card'),
+        dropZone:     document.getElementById('upload-drop-zone'),
+        fileInput:    document.getElementById('audio-file-input'),
+        fileSelected: document.getElementById('upload-file-selected'),
+        fileName:     document.getElementById('upload-file-name'),
+        fileSize:     document.getElementById('upload-file-size'),
+        fileClear:    document.getElementById('upload-file-clear'),
+        errorBanner:  document.getElementById('upload-error-banner'),
+        errorText:    document.getElementById('upload-error-text'),
+        btnProcess:   document.getElementById('btn-process-upload'),
+    };
+
+    const MAX_UPLOAD_MB = 25;
+
+    function formatBytes(bytes) {
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function showUploadError(msg) {
+        if (!elUp.errorBanner) return;
+        elUp.errorText.textContent = msg;
+        elUp.errorBanner.classList.remove('hidden');
+        elUp.errorBanner.classList.add('flex');
+    }
+
+    function hideUploadError() {
+        elUp.errorBanner?.classList.add('hidden');
+        elUp.errorBanner?.classList.remove('flex');
+    }
+
+    function clearUploadState() {
+        if (elUp.fileInput) elUp.fileInput.value = '';
+        elUp.fileSelected?.classList.add('hidden');
+        elUp.fileSelected?.classList.remove('flex');
+        elUp.dropZone?.classList.remove('hidden');
+        if (elUp.btnProcess) elUp.btnProcess.disabled = true;
+        hideUploadError();
+    }
+
+    function applyUploadFile(file) {
+        hideUploadError();
+        if (!file) return;
+
+        if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|m4a|wav|webm|ogg|mp4|aac|flac)$/i)) {
+            showUploadError('Formato inválido. Use MP3, M4A, WAV, WebM ou OGG.');
+            return;
+        }
+        if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+            showUploadError(`Arquivo muito grande (${formatBytes(file.size)}). Limite: ${MAX_UPLOAD_MB} MB.`);
+            return;
+        }
+
+        elUp.fileName.textContent = file.name;
+        elUp.fileSize.textContent  = formatBytes(file.size);
+        elUp.fileSelected?.classList.remove('hidden');
+        elUp.fileSelected?.classList.add('flex');
+        elUp.dropZone?.classList.add('hidden');
+        if (elUp.btnProcess) elUp.btnProcess.disabled = false;
+
+        // Disponibiliza para o pipeline (mesmo slot usado pela gravação ao vivo)
+        window.lastAudioBlob = file;
+    }
+
+    if (elUp.fileInput) {
+        elUp.fileInput.addEventListener('change', (e) => applyUploadFile(e.target.files?.[0]));
+    }
+
+    if (elUp.fileClear) {
+        elUp.fileClear.addEventListener('click', () => {
+            window.lastAudioBlob = null;
+            clearUploadState();
+        });
+    }
+
+    // Drag-and-drop
+    if (elUp.dropZone) {
+        elUp.dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            elUp.dropZone.classList.add('border-emerald-400', 'bg-emerald-50/30');
+        });
+        elUp.dropZone.addEventListener('dragleave', () => {
+            elUp.dropZone.classList.remove('border-emerald-400', 'bg-emerald-50/30');
+        });
+        elUp.dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            elUp.dropZone.classList.remove('border-emerald-400', 'bg-emerald-50/30');
+            applyUploadFile(e.dataTransfer.files?.[0]);
+        });
+    }
+
+    if (elUp.btnProcess) {
+        elUp.btnProcess.addEventListener('click', () => {
+            if (!window.lastAudioBlob) return;
+
+            // Cria sessão local para rastrear (sem gravação de microfone)
+            if (currentSessionId) SessionManager.finalizeSession(currentSessionId);
+            const _sess      = SessionManager.createSession();
+            currentSessionId = _sess.id;
+            accumulatedTranscript = '';
+            _liveBoxLastFinal     = '';
+
+            // Mostra estado de processamento (reutiliza o mesmo do recorder)
+            el.stateIdle.classList.add('hidden');
+            el.stateProcessing.classList.remove('hidden');
+            el.stateProcessing.classList.add('flex', 'fade-in');
+            el.glow.classList.replace('bg-emerald-500/0', 'bg-emerald-500/20');
+            if (elUp.card) elUp.card.classList.add('opacity-50', 'pointer-events-none');
+
+            setStatus('Processando...', 'violet');
+            enableGenerateButton(false);
+            runProcessingPipeline(app);
+        });
+    }
+
+    // Esconde o card de upload enquanto grava (e restaura ao parar)
+    const _origBtnStartClick = el.btnStart.onclick;
+    el.btnStart.addEventListener('click', () => {
+        if (elUp.card) elUp.card.classList.add('hidden');
+    });
+    el.btnStop.addEventListener('click', () => {
+        if (elUp.card) elUp.card.classList.remove('hidden');
+    });
+
     // ── Copy transcript ───────────────────────────────────────────────────────
     if (el.btnCopyTranscript) {
         el.btnCopyTranscript.addEventListener('click', () => {
@@ -594,6 +720,8 @@ function initRecorder(app) {
         el.stateIdle.classList.remove('hidden');
         el.progressBar.style.width = '0%';
         el.glow.classList.replace('bg-emerald-500/20', 'bg-emerald-500/0');
+        // Restaura card de upload caso tenha sido disparado por um upload
+        if (elUp.card) elUp.card.classList.remove('opacity-50', 'pointer-events-none');
     }
 
     // Reseta o estado visual do recorder para nova consulta.
@@ -610,6 +738,11 @@ function initRecorder(app) {
         enableGenerateButton(false);
         setStatus('Aguardando gravação...', 'zinc');
         if (el.liveTranscriptText) el.liveTranscriptText.innerHTML = '';
+
+        // Reseta estado de upload
+        window.lastAudioBlob = null;
+        clearUploadState();
+        if (elUp.card) elUp.card.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
     };
 
     // ── Mic error handler ─────────────────────────────────────────────────────
