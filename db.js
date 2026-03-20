@@ -149,7 +149,7 @@ const DB = (() => {
                 .from('consultas')
                 .select(cols)
                 .eq('user_id', userId)
-                .eq('status', 'finalizada')
+                .not('resultado_medico', 'is', null)  // mostra qualquer consulta com resultado, independente do status
                 .order('created_at', { ascending: false });
             if (withPatientName && search.trim()) q = q.ilike('patient_name', `%${search.trim()}%`);
             return q;
