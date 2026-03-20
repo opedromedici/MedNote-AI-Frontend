@@ -113,7 +113,7 @@ const DB = (() => {
             prompt_ia_snap:         promptIaSnap        ?? null,
         };
 
-        const { error } = await client
+        let { error } = await client
             .from('consultas')
             .update({ ...basePayload, patient_name: patientName ?? null })
             .eq('id', consultaId);
@@ -125,9 +125,13 @@ const DB = (() => {
                     .from('consultas')
                     .update(basePayload)
                     .eq('id', consultaId);
-                if (e2) console.warn('[DB] saveConsultaResults (fallback):', e2.message);
+                if (e2) {
+                    console.warn('[DB] saveConsultaResults (fallback):', e2.message);
+                    throw new Error(e2.message); // propaga para o pipeline exibir ao usuário
+                }
             } else {
                 console.warn('[DB] saveConsultaResults:', error.message);
+                throw new Error(error.message); // propaga para o pipeline exibir ao usuário
             }
         }
     }
@@ -136,14 +140,31 @@ const DB = (() => {
         const userId = await getUserId();
         if (!userId) return [];
         const client = await getClient();
-        let query = client
-            .from('consultas')
-            .select('id, patient_name, status, duracao_segundos, created_at, resultado_medico, resultado_paciente, transcript_whisper, transcript_rascunho')
-            .eq('user_id', userId)
-            .eq('status', 'finalizada')
-            .order('created_at', { ascending: false });
-        if (search.trim()) query = query.ilike('patient_name', `%${search.trim()}%`);
-        const { data, error } = await query;
+
+        const buildQuery = (withPatientName) => {
+            const cols = withPatientName
+                ? 'id, patient_name, status, duracao_segundos, created_at, resultado_medico, resultado_paciente, transcript_whisper, transcript_rascunho'
+                : 'id, status, duracao_segundos, created_at, resultado_medico, resultado_paciente, transcript_whisper, transcript_rascunho';
+            let q = client
+                .from('consultas')
+                .select(cols)
+                .eq('user_id', userId)
+                .eq('status', 'finalizada')
+                .order('created_at', { ascending: false });
+            if (withPatientName && search.trim()) q = q.ilike('patient_name', `%${search.trim()}%`);
+            return q;
+        };
+
+        let { data, error } = await buildQuery(true);
+
+        // Coluna patient_name ainda não existe no banco — tenta sem ela
+        if (error?.message?.includes('patient_name')) {
+            console.info('[DB] listConsultas: patient_name ausente, buscando sem ela');
+            const res2 = await buildQuery(false);
+            data  = res2.data;
+            error = res2.error;
+        }
+
         if (error) { console.warn('[DB] listConsultas:', error.message); return []; }
         return data ?? [];
     }

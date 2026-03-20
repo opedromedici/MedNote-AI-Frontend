@@ -183,20 +183,43 @@ function initRecorder(app) {
         el.micErrorBanner?.classList.remove('flex');
     }
 
+    // Atualiza a caixa de transcrição ao vivo sem reconstruir o texto já exibido.
+    // Mantém o texto finalizado estável e só atualiza o span de interim (palavras em andamento).
+    // Isso evita o efeito "rolando do início ao fim" que ocorria ao reiniciar a sessão de recognition.
+    let _liveBoxLastFinal = '';
     function updateLiveBox(final, interim) {
         if (!el.liveTranscriptText) return;
-        // Usa DOM em vez de innerHTML para evitar que caracteres médicos (<, >, &)
-        // quebrem o HTML e façam texto desaparecer da transcrição ao vivo.
-        el.liveTranscriptText.textContent = '';
-        const spanFinal = document.createElement('span');
-        spanFinal.textContent = final;
-        const spanInterim = document.createElement('span');
-        spanInterim.className = 'text-zinc-400 italic';
-        spanInterim.textContent = interim;
-        el.liveTranscriptText.appendChild(spanFinal);
-        el.liveTranscriptText.appendChild(spanInterim);
-        if (el.liveTranscriptBox)
+
+        // Só reconstrói o texto final quando ele realmente mudou
+        if (final !== _liveBoxLastFinal) {
+            _liveBoxLastFinal = final;
+            el.liveTranscriptText.textContent = '';
+            const spanFinal = document.createElement('span');
+            spanFinal.textContent = final;
+            el.liveTranscriptText.appendChild(spanFinal);
+
+            // Recria o span de interim após atualizar o final
+            const spanInterim = document.createElement('span');
+            spanInterim.id = 'live-interim-span';
+            spanInterim.className = 'text-zinc-400 italic';
+            spanInterim.textContent = interim;
+            el.liveTranscriptText.appendChild(spanInterim);
+        } else {
+            // Apenas atualiza o interim sem tocar no texto final já renderizado
+            let spanInterim = document.getElementById('live-interim-span');
+            if (!spanInterim) {
+                spanInterim = document.createElement('span');
+                spanInterim.id = 'live-interim-span';
+                spanInterim.className = 'text-zinc-400 italic';
+                el.liveTranscriptText.appendChild(spanInterim);
+            }
+            spanInterim.textContent = interim;
+        }
+
+        // Rola para o final apenas quando há novo texto interim (usuário está falando)
+        if (interim && el.liveTranscriptBox) {
             el.liveTranscriptBox.scrollTop = el.liveTranscriptBox.scrollHeight;
+        }
     }
 
     // Para o recognition com flush do texto pendente (sem acionar o onend de reinício)
@@ -231,6 +254,7 @@ function initRecorder(app) {
 
         // Reset acumuladores para nova gravação
         accumulatedTranscript = '';
+        _liveBoxLastFinal     = '';
         window.lastAudioBlob  = null;
 
         // MediaRecorder
@@ -577,6 +601,7 @@ function initRecorder(app) {
     window.resetRecorderView = () => {
         accumulatedTranscript = '';
         currentSessionId      = null;
+        _liveBoxLastFinal     = '';
         if (el.storedTranscript) {
             el.storedTranscript.value = '';
             localStorage.removeItem(TRANSCRIPT_STORAGE_KEY);
