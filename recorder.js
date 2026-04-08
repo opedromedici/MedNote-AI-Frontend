@@ -373,14 +373,14 @@ function initRecorder(app) {
         let recorderStream = stream;
         if (isOnlineMode && capturedDisplay) {
             displayStream = capturedDisplay;
-            mixAudioCtx   = new AudioContext();
-            await mixAudioCtx.resume(); // garante que o contexto não está suspenso
-            const dest       = mixAudioCtx.createMediaStreamDestination();
-            const micSrc     = mixAudioCtx.createMediaStreamSource(stream);
-            const displaySrc = mixAudioCtx.createMediaStreamSource(displayStream);
-            micSrc.connect(dest);
-            displaySrc.connect(dest);
-            recorderStream = dest.stream;
+
+            // Combina os tracks diretamente num único MediaStream.
+            // O MediaRecorder do Chrome mistura múltiplos tracks de áudio nativamente,
+            // evitando os glitches de buffer que ocorrem ao rotear pelo AudioContext.
+            recorderStream = new MediaStream([
+                ...stream.getAudioTracks(),
+                ...displayStream.getAudioTracks()
+            ]);
 
             // Se o usuário parar de compartilhar externamente, encerra a gravação
             displayStream.getAudioTracks()[0].onended = () => {
