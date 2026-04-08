@@ -1,90 +1,62 @@
-// MedNote AI — OpenAI Integration Module (ai.js)
-// A chave fica em config.js (gitignored). Nunca commitar chaves reais.
+// MedNote AI — AI Module (ai.js)
+// Chama as Supabase Edge Functions para transcrição (Gemini) e geração de resumos.
+// A GEMINI_API_KEY fica exclusivamente no servidor — nunca exposta no frontend.
 
-const OPENAI_API_KEY = (typeof CONFIG !== 'undefined') ? CONFIG.OPENAI_API_KEY : '';
+const SUPABASE_FUNCTIONS_URL = `${window.__SUPABASE_URL__}/functions/v1`;
 
 const MedNoteAI = {
 
     hasKey() {
-        return OPENAI_API_KEY.startsWith('sk-') && OPENAI_API_KEY.length > 20;
+        // Com Edge Functions, não há chave no frontend — sempre habilitado se autenticado
+        return true;
     },
 
-    // ── Whisper: transcrição de áudio ─────────────────────────────────────────
+    // ── Transcrição de áudio via Edge Function → Gemini ──────────────────────
     async transcribe(audioBlob) {
+        const token = await getAuthToken();
+
         const formData = new FormData();
         formData.append('file', audioBlob, 'recording.webm');
-        formData.append('model', 'whisper-1');
-        formData.append('language', 'pt');
-        formData.append('response_format', 'text');
 
-        const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
+        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/transcribe`, {
+            method:  'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'apikey':        window.__SUPABASE_ANON_KEY__,
+            },
             body: formData,
         });
 
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err?.error?.message || `Whisper erro ${res.status}`);
-        }
-
-        return await res.text();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `Erro ${res.status} na transcrição`);
+        return data.transcript;
     },
 
-    // ── GPT-4o: geração dos resumos ───────────────────────────────────────────
+    // ── Geração de resumos via Edge Function → Gemini ─────────────────────────
     async generateSummaries(transcript, doctorTemplate, patientTemplate, systemPrompt) {
-        const sysContent = systemPrompt ||
-            'Você é um assistente médico especializado. Gere documentos clínicos precisos e bem estruturados em português.';
+        const token = await getAuthToken();
 
-        const userContent =
-`Abaixo está a transcrição de uma consulta médica. Gere dois documentos com base nos templates fornecidos.
-
-## TEMPLATE — PRONTUÁRIO MÉDICO (para o médico):
-${doctorTemplate}
-
-## TEMPLATE — RESUMO DO PACIENTE (para o paciente):
-${patientTemplate}
-
-## TRANSCRIÇÃO DA CONSULTA:
-${transcript}
-
-Responda SOMENTE em JSON válido, sem texto fora do JSON, no seguinte formato:
-{
-  "doctor": "<prontuário médico completo aqui>",
-  "patient": "<resumo do paciente completo aqui>"
-}`;
-
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
+        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/generate-summaries`, {
+            method:  'POST',
             headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
-                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'apikey':        window.__SUPABASE_ANON_KEY__,
+                'Content-Type':  'application/json',
             },
-            body: JSON.stringify({
-                model: 'gpt-4o',
-                messages: [
-                    { role: 'system', content: sysContent },
-                    { role: 'user',   content: userContent },
-                ],
-                temperature: 0.2,
-                response_format: { type: 'json_object' },
-            }),
+            body: JSON.stringify({ transcript, doctorTemplate, patientTemplate, systemPrompt }),
         });
 
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err?.error?.message || `GPT erro ${res.status}`);
-        }
-
         const data = await res.json();
-        const raw  = data.choices[0].message.content;
-
-        try {
-            return JSON.parse(raw);
-        } catch {
-            const match = raw.match(/\{[\s\S]*\}/);
-            if (match) return JSON.parse(match[0]);
-            throw new Error('Resposta da IA fora do formato esperado.');
-        }
+        if (!res.ok) throw new Error(data?.error || `Erro ${res.status} na geração de resumos`);
+        return data;
     },
 };
+
+// ── Helper: token JWT do usuário autenticado ──────────────────────────────────
+async function getAuthToken() {
+    const { session } = await AuthModule.getSession();
+    if (!session?.access_token) throw new Error('Usuário não autenticado.');
+    return session.access_token;
+}
+
+window.MedNoteAI = MedNoteAI;
