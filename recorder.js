@@ -186,8 +186,7 @@ function initRecorder(app) {
     function stopDisplayStream() {
         displayStream?.getTracks().forEach(t => t.stop());
         displayStream = null;
-        mixAudioCtx?.close();
-        mixAudioCtx = null;
+        if (mixAudioCtx) { mixAudioCtx.close(); mixAudioCtx = null; }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -355,12 +354,13 @@ function initRecorder(app) {
 
         let stream;
         try {
-            // Em modo online: sem sampleRate fixo e sem echoCancellation para evitar
-            // mismatch de sample rate com o áudio da aba e cancelamento acidental do paciente
-            const micConstraints = isOnlineMode
-                ? { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }
-                : { audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1, sampleRate: 16000 } };
-            stream = await navigator.mediaDevices.getUserMedia(micConstraints);
+            // Echo cancellation sempre ativo: em modo online, o AEC remove o eco da voz
+            // do paciente que vaza pelo alto-falante para o microfone — sem isso o
+            // SpeechRecognition fica confuso entre voz real e eco e as palavras não finalizam.
+            // A voz do paciente vem limpa pelo displayStream, então não há perda.
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true }
+            });
         } catch (err) {
             capturedDisplay?.getTracks().forEach(t => t.stop());
             handleMicError(err);
@@ -374,13 +374,20 @@ function initRecorder(app) {
         if (isOnlineMode && capturedDisplay) {
             displayStream = capturedDisplay;
 
-            // Combina os tracks diretamente num único MediaStream.
-            // O MediaRecorder do Chrome mistura múltiplos tracks de áudio nativamente,
-            // evitando os glitches de buffer que ocorrem ao rotear pelo AudioContext.
-            recorderStream = new MediaStream([
-                ...stream.getAudioTracks(),
-                ...displayStream.getAudioTracks()
-            ]);
+            // Usa AudioContext na taxa de amostragem nativa do display stream para evitar
+            // resampling e glitches. Multi-track MediaStream não é confiável pois o spec
+            // não garante que o MediaRecorder misture múltiplos tracks.
+            const displaySampleRate = displayStream.getAudioTracks()[0]
+                ?.getSettings()?.sampleRate || 44100;
+            mixAudioCtx = new AudioContext({ sampleRate: displaySampleRate, latencyHint: 'playback' });
+            await mixAudioCtx.resume();
+
+            const dest       = mixAudioCtx.createMediaStreamDestination();
+            const micSrc     = mixAudioCtx.createMediaStreamSource(stream);
+            const displaySrc = mixAudioCtx.createMediaStreamSource(displayStream);
+            micSrc.connect(dest);
+            displaySrc.connect(dest);
+            recorderStream = dest.stream;
 
             // Se o usuário parar de compartilhar externamente, encerra a gravação
             displayStream.getAudioTracks()[0].onended = () => {
