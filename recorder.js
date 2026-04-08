@@ -777,12 +777,21 @@ function initRecorder(app) {
 
             let transcript;
 
-            // Whisper é sempre a fonte principal quando há áudio gravado
-            if (window.lastAudioBlob && window.lastAudioBlob.size > 0) {
+            // Prioridade 1: chunks do SpeechRecognition (gravação ao vivo)
+            // São a fonte mais completa pois foram capturados em tempo real.
+            const chunksTranscript = currentSessionId
+                ? SessionManager.getConsolidatedTranscript(currentSessionId)
+                : '';
+
+            if (chunksTranscript) {
+                transcript = chunksTranscript;
+                setProgress('25%', 'Transcrição ao vivo consolidada...');
+
+            // Prioridade 2: áudio blob sem chunks → upload manual, transcreve com Gemini
+            } else if (window.lastAudioBlob && window.lastAudioBlob.size > 0) {
                 setProgress('25%', 'Transcrevendo com Gemini AI...');
                 transcript = await MedNoteAI.transcribe(window.lastAudioBlob);
 
-                // Atualiza o campo com a transcrição precisa do Whisper
                 if (el.storedTranscript) {
                     el.storedTranscript.value = transcript;
                     updateWordCount(transcript);
@@ -790,13 +799,9 @@ function initRecorder(app) {
                 localStorage.setItem(TRANSCRIPT_STORAGE_KEY, transcript);
                 setStatus('Transcrição Gemini concluída', 'emerald');
 
+            // Prioridade 3: texto editado manualmente no campo
             } else {
-                // Sem áudio: lê TODOS os chunks da sessão atual (fonte mais completa),
-                // com fallback para o campo de texto (edição manual ou sessão anterior).
-                const chunksTranscript = currentSessionId
-                    ? SessionManager.getConsolidatedTranscript(currentSessionId)
-                    : '';
-                transcript = chunksTranscript || el.storedTranscript?.value.trim() || '';
+                transcript = el.storedTranscript?.value.trim() || '';
             }
 
             if (!transcript) {
@@ -805,7 +810,7 @@ function initRecorder(app) {
                 return;
             }
 
-            setProgress('50%', 'Gerando prontuário e resumo (GPT-4o)...');
+            setProgress('50%', 'Gerando prontuário e resumo (Gemini AI)...');
             const doctorTemplate  = localStorage.getItem('mednote_template_doctor')  || '';
             const patientTemplate = localStorage.getItem('mednote_template_patient') || '';
             const systemPrompt    = localStorage.getItem('mednote_ai_system_prompt') || '';
