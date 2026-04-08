@@ -59,19 +59,28 @@ Deno.serve(async (req: Request) => {
   }
 });
 
+// ── Converte Uint8Array para base64 sem stack overflow ────────────────────────
+// btoa(String.fromCharCode(...bytes)) explode para arrays > ~65KB pois o spread
+// transforma cada byte em argumento de função, excedendo o limite da call stack.
+function toBase64(bytes: Uint8Array): string {
+  const chunkSize = 8192;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
 // ── Transcrição com dado inline (< 15 MB) ────────────────────────────────────
 async function transcribeInline(audioBytes: Uint8Array, mimeType: string): Promise<string> {
-  const base64 = btoa(String.fromCharCode(...audioBytes));
+  const base64 = toBase64(audioBytes);
 
   const body = {
     contents: [{
       parts: [
-        {
-          inline_data: { mime_type: mimeType, data: base64 },
-        },
-        {
-          text: 'Transcreva este áudio em português do Brasil com fidelidade máxima. Retorne apenas a transcrição, sem comentários ou formatação adicional.',
-        },
+        { inline_data: { mime_type: mimeType, data: base64 } },
+        { text: 'Transcreva este áudio em português do Brasil com fidelidade máxima. Retorne apenas a transcrição, sem comentários ou formatação adicional.' },
       ],
     }],
   };
@@ -81,15 +90,16 @@ async function transcribeInline(audioBytes: Uint8Array, mimeType: string): Promi
 
 // ── Transcrição via Files API (>= 15 MB) ─────────────────────────────────────
 async function transcribeViaFilesAPI(audioBytes: Uint8Array, mimeType: string): Promise<string> {
-  // 1. Upload para a Files API
+  // 1. Upload para a Files API (protocolo resumable simplificado)
   const uploadRes = await fetch(
-    `${GEMINI_BASE_URL}/files?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`,
     {
-      method:  'POST',
+      method: 'POST',
       headers: {
-        'Content-Type':  mimeType,
-        'Content-Length': String(audioBytes.length),
-        'X-Goog-Upload-Protocol': 'raw',
+        'X-Goog-Upload-Command':             'upload, finalize',
+        'X-Goog-Upload-Header-Content-Type': mimeType,
+        'X-Goog-Upload-Header-Content-Length': String(audioBytes.length),
+        'Content-Type': mimeType,
       },
       body: audioBytes,
     }
@@ -105,16 +115,14 @@ async function transcribeViaFilesAPI(audioBytes: Uint8Array, mimeType: string): 
     contents: [{
       parts: [
         { file_data: { mime_type: mimeType, file_uri: file.uri } },
-        {
-          text: 'Transcreva este áudio em português do Brasil com fidelidade máxima. Retorne apenas a transcrição, sem comentários ou formatação adicional.',
-        },
+        { text: 'Transcreva este áudio em português do Brasil com fidelidade máxima. Retorne apenas a transcrição, sem comentários ou formatação adicional.' },
       ],
     }],
   };
 
   const transcript = await callGemini(body);
 
-  // 3. Deleta o arquivo após uso (boa prática)
+  // 3. Deleta o arquivo após uso
   fetch(`${GEMINI_BASE_URL}/${file.name}?key=${GEMINI_API_KEY}`, { method: 'DELETE' }).catch(() => {});
 
   return transcript;

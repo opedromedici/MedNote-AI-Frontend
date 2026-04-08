@@ -779,7 +779,7 @@ function initRecorder(app) {
 
             // Whisper é sempre a fonte principal quando há áudio gravado
             if (window.lastAudioBlob && window.lastAudioBlob.size > 0) {
-                setProgress('25%', 'Transcrevendo com Whisper AI...');
+                setProgress('25%', 'Transcrevendo com Gemini AI...');
                 transcript = await MedNoteAI.transcribe(window.lastAudioBlob);
 
                 // Atualiza o campo com a transcrição precisa do Whisper
@@ -788,7 +788,7 @@ function initRecorder(app) {
                     updateWordCount(transcript);
                 }
                 localStorage.setItem(TRANSCRIPT_STORAGE_KEY, transcript);
-                setStatus('Transcrição Whisper concluída', 'emerald');
+                setStatus('Transcrição Gemini concluída', 'emerald');
 
             } else {
                 // Sem áudio: lê TODOS os chunks da sessão atual (fonte mais completa),

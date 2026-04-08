@@ -4,6 +4,9 @@
 
 const SUPABASE_FUNCTIONS_URL = `${window.__SUPABASE_URL__}/functions/v1`;
 
+// Timeout por chamada: 3 minutos (consultas longas podem ter áudios grandes)
+const FETCH_TIMEOUT_MS = 3 * 60 * 1000;
+
 const MedNoteAI = {
 
     hasKey() {
@@ -18,7 +21,7 @@ const MedNoteAI = {
         const formData = new FormData();
         formData.append('file', audioBlob, 'recording.webm');
 
-        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/transcribe`, {
+        const res = await fetchWithTimeout(`${SUPABASE_FUNCTIONS_URL}/transcribe`, {
             method:  'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -36,7 +39,7 @@ const MedNoteAI = {
     async generateSummaries(transcript, doctorTemplate, patientTemplate, systemPrompt) {
         const token = await getAuthToken();
 
-        const res = await fetch(`${SUPABASE_FUNCTIONS_URL}/generate-summaries`, {
+        const res = await fetchWithTimeout(`${SUPABASE_FUNCTIONS_URL}/generate-summaries`, {
             method:  'POST',
             headers: {
                 'Authorization': `Bearer ${token}`,
@@ -51,6 +54,21 @@ const MedNoteAI = {
         return data;
     },
 };
+
+// ── Helper: fetch com timeout via AbortController ─────────────────────────────
+async function fetchWithTimeout(url, options) {
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    try {
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        return res;
+    } catch (err) {
+        if (err.name === 'AbortError') throw new Error('Tempo limite excedido. Tente novamente.');
+        throw err;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+}
 
 // ── Helper: token JWT do usuário autenticado ──────────────────────────────────
 async function getAuthToken() {
