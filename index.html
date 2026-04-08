@@ -148,6 +148,21 @@
                         <h3 class="text-xl font-semibold text-zinc-900 mt-6 tracking-tight">Iniciar Gravação</h3>
                         <p class="text-sm text-zinc-500 mt-2 max-w-sm">O navegador solicitará permissão de microfone ao iniciar.</p>
 
+                        <!-- Toggle: Consulta Online -->
+                        <div id="online-mode-toggle"
+                            class="mt-4 flex items-center gap-3 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 max-w-sm w-full cursor-pointer select-none transition-colors duration-200">
+                            <div class="w-7 h-7 rounded-full bg-zinc-100 flex items-center justify-center shrink-0 transition-colors duration-200" id="online-mode-icon-wrap">
+                                <i class="ph ph-video-camera text-zinc-500 text-sm" id="online-mode-icon"></i>
+                            </div>
+                            <div class="flex-1 text-left">
+                                <span class="text-xs font-semibold text-zinc-700">Consulta Online</span>
+                                <p class="text-[10px] text-zinc-400 mt-0.5 leading-snug">Captura microfone + alto-falante para videochamadas</p>
+                            </div>
+                            <div id="online-mode-switch" class="w-9 h-5 bg-zinc-300 rounded-full relative transition-colors duration-200 shrink-0">
+                                <div id="online-mode-knob" class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200"></div>
+                            </div>
+                        </div>
+
                         <!-- Mic Error Message (hidden by default) -->
                         <div id="mic-error-banner" class="hidden mt-5 flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl px-4 py-3 max-w-sm text-left">
                             <i class="ph ph-warning-circle text-base mt-0.5 shrink-0"></i>
@@ -176,6 +191,12 @@
                             <div class="viz-bar w-1.5 bg-red-500 rounded-full transition-all duration-75" style="height:25%"></div>
                             <div class="viz-bar w-1.5 bg-red-500 rounded-full transition-all duration-75" style="height:66%"></div>
                             <div class="viz-bar w-1.5 bg-red-500 rounded-full transition-all duration-75" style="height:50%"></div>
+                        </div>
+
+                        <!-- Online mode note (shown when online mode active) -->
+                        <div id="online-mode-note" class="hidden mb-3 items-center gap-2 bg-violet-50 border border-violet-200 text-violet-600 text-[10px] rounded-lg px-3 py-2 max-w-sm w-full">
+                            <i class="ph ph-video-camera text-sm shrink-0"></i>
+                            <span>Modo online ativo — pré-visualização mostra apenas o médico. Transcrição final (Whisper) captura todas as vozes.</span>
                         </div>
 
                         <!-- Live Transcription Feed -->
@@ -546,6 +567,77 @@
     <script src="config.js"></script>
     <script src="ai.js"></script>
     <script src="session.js"></script>
+    <!-- Modal: Instrução Consulta Online -->
+    <div id="online-guide-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
+
+        <!-- Card -->
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 flex flex-col gap-5">
+            <!-- Header -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center shrink-0">
+                    <i class="ph ph-video-camera text-violet-600 text-lg"></i>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold text-zinc-900 leading-none">Consulta Online</h2>
+                    <p class="text-[11px] text-zinc-400 mt-0.5">Siga os passos para capturar o áudio da chamada</p>
+                </div>
+            </div>
+
+            <!-- Steps -->
+            <ol class="flex flex-col gap-3">
+                <li class="flex items-start gap-3">
+                    <span class="w-6 h-6 rounded-full bg-violet-500 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                    <div>
+                        <p class="text-sm font-semibold text-zinc-800">Clique em <span class="font-bold">"Aba (Chrome)"</span></p>
+                        <p class="text-[11px] text-zinc-400 mt-0.5">Na janela que vai abrir, escolha a aba — não "Janela" nem "Tela"</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-3">
+                    <span class="w-6 h-6 rounded-full bg-violet-500 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                    <div>
+                        <p class="text-sm font-semibold text-zinc-800">Selecione a aba da videochamada</p>
+                        <p class="text-[11px] text-zinc-400 mt-0.5">Google Meet, Zoom, Teams — a aba onde está o paciente</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-3">
+                    <span class="w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+                    <div>
+                        <p class="text-sm font-semibold text-zinc-800">Marque <span class="text-emerald-600 font-bold">"Compartilhar áudio da aba"</span></p>
+                        <p class="text-[11px] text-zinc-400 mt-0.5">Este passo é obrigatório — sem ele o paciente não será gravado</p>
+                    </div>
+                </li>
+                <li class="flex items-start gap-3">
+                    <span class="w-6 h-6 rounded-full bg-violet-500 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
+                    <div>
+                        <p class="text-sm font-semibold text-zinc-800">Clique <span class="font-bold">"Compartilhar"</span></p>
+                        <p class="text-[11px] text-zinc-400 mt-0.5">A gravação começa automaticamente</p>
+                    </div>
+                </li>
+            </ol>
+
+            <!-- Error (hidden by default) -->
+            <div id="online-guide-error" class="hidden items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl px-4 py-3">
+                <i class="ph ph-warning-circle text-base mt-0.5 shrink-0"></i>
+                <span id="online-guide-error-text"></span>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex flex-col gap-2">
+                <button id="online-guide-confirm"
+                    class="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+                    <i class="ph ph-arrow-right text-base"></i>
+                    Entendido — Abrir seletor
+                </button>
+                <button id="online-guide-cancel"
+                    class="w-full py-2 text-zinc-400 hover:text-zinc-600 text-xs transition-colors">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
     <script src="recorder.js"></script>
     <script src="templates.js"></script>

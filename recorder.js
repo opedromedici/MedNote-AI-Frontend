@@ -10,6 +10,11 @@ let mediaStream   = null;
 let mediaRecorder = null;
 let audioChunks   = [];
 
+// Online mode (mic + speaker mix)
+let displayStream = null;
+let mixAudioCtx   = null;
+let isOnlineMode  = false;
+
 // SpeechRecognition
 let recognition           = null;
 let accumulatedTranscript = ''; // texto final de todas as sessões anteriores
@@ -149,6 +154,42 @@ function initRecorder(app) {
         el.speechUnsupported.classList.add('flex');
     }
 
+    // ── Online mode toggle ────────────────────────────────────────────────────
+    const elOnlineToggle   = document.getElementById('online-mode-toggle');
+    const elOnlineSwitch   = document.getElementById('online-mode-switch');
+    const elOnlineKnob     = document.getElementById('online-mode-knob');
+    const elOnlineIconWrap = document.getElementById('online-mode-icon-wrap');
+    const elOnlineIcon     = document.getElementById('online-mode-icon');
+    const elOnlineNote     = document.getElementById('online-mode-note');
+
+    if (elOnlineToggle) {
+        elOnlineToggle.addEventListener('click', () => {
+            isOnlineMode = !isOnlineMode;
+            if (isOnlineMode) {
+                elOnlineSwitch?.classList.replace('bg-zinc-300', 'bg-violet-500');
+                if (elOnlineKnob) elOnlineKnob.style.transform = 'translateX(16px)';
+                elOnlineToggle.classList.replace('bg-zinc-50', 'bg-violet-50');
+                elOnlineToggle.classList.replace('border-zinc-200', 'border-violet-300');
+                if (elOnlineIconWrap) { elOnlineIconWrap.classList.replace('bg-zinc-100', 'bg-violet-100'); }
+                if (elOnlineIcon)     { elOnlineIcon.classList.replace('text-zinc-500', 'text-violet-500'); }
+            } else {
+                elOnlineSwitch?.classList.replace('bg-violet-500', 'bg-zinc-300');
+                if (elOnlineKnob) elOnlineKnob.style.transform = 'translateX(0px)';
+                elOnlineToggle.classList.replace('bg-violet-50', 'bg-zinc-50');
+                elOnlineToggle.classList.replace('border-violet-300', 'border-zinc-200');
+                if (elOnlineIconWrap) { elOnlineIconWrap.classList.replace('bg-violet-100', 'bg-zinc-100'); }
+                if (elOnlineIcon)     { elOnlineIcon.classList.replace('text-violet-500', 'text-zinc-500'); }
+            }
+        });
+    }
+
+    function stopDisplayStream() {
+        displayStream?.getTracks().forEach(t => t.stop());
+        displayStream = null;
+        mixAudioCtx?.close();
+        mixAudioCtx = null;
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     const formatTime = (s) =>
@@ -231,9 +272,86 @@ function initRecorder(app) {
         recognition = null;
     }
 
+    // ── Guided modal para captura de aba (consulta online) ───────────────────
+    function openOnlineGuideAndCapture() {
+        return new Promise((resolve, reject) => {
+            const modal      = document.getElementById('online-guide-modal');
+            const btnConfirm = document.getElementById('online-guide-confirm');
+            const btnCancel  = document.getElementById('online-guide-cancel');
+            const errDiv     = document.getElementById('online-guide-error');
+            const errText    = document.getElementById('online-guide-error-text');
+
+            modal.classList.remove('hidden');
+
+            function showModalError(msg) {
+                if (errText) errText.textContent = msg;
+                errDiv?.classList.remove('hidden');
+                errDiv?.classList.add('flex');
+                btnConfirm.disabled = false;
+                btnConfirm.innerHTML = '<i class="ph ph-arrow-clockwise text-base"></i> Tentar novamente';
+            }
+
+            function closeModal() {
+                modal.classList.add('hidden');
+                errDiv?.classList.add('hidden');
+                errDiv?.classList.remove('flex');
+                btnConfirm.disabled = false;
+                btnConfirm.innerHTML = '<i class="ph ph-arrow-right text-base"></i> Entendido — Abrir seletor';
+                btnConfirm.removeEventListener('click', onConfirm);
+                btnCancel.removeEventListener('click', onCancel);
+            }
+
+            async function onConfirm() {
+                btnConfirm.disabled = true;
+                btnConfirm.innerHTML = '<i class="ph ph-circle-notch animate-spin text-base"></i> Aguardando seleção...';
+                errDiv?.classList.add('hidden');
+                errDiv?.classList.remove('flex');
+
+                try {
+                    const display = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+                    display.getVideoTracks().forEach(t => t.stop());
+
+                    if (!display.getAudioTracks().length) {
+                        display.getTracks().forEach(t => t.stop());
+                        showModalError('Áudio não capturado. Volte ao passo 3 e marque "Compartilhar áudio da aba" antes de clicar Compartilhar.');
+                        return;
+                    }
+
+                    closeModal();
+                    resolve(display);
+                } catch (err) {
+                    if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+                        closeModal();
+                        reject(err);
+                    } else {
+                        showModalError(`Erro inesperado: ${err.message}. Tente novamente.`);
+                    }
+                }
+            }
+
+            function onCancel() {
+                closeModal();
+                reject(new Error('cancelled'));
+            }
+
+            btnConfirm.addEventListener('click', onConfirm);
+            btnCancel.addEventListener('click', onCancel);
+        });
+    }
+
     // ── Start recording ───────────────────────────────────────────────────────
     el.btnStart.addEventListener('click', async () => {
         hideMicError();
+
+        // Modo online: mostra guia e captura áudio da aba
+        let capturedDisplay = null;
+        if (isOnlineMode) {
+            try {
+                capturedDisplay = await openOnlineGuideAndCapture();
+            } catch (_) {
+                return; // usuário cancelou ou fechou o seletor
+            }
+        }
 
         let stream;
         try {
@@ -241,11 +359,30 @@ function initRecorder(app) {
                 audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1, sampleRate: 16000 }
             });
         } catch (err) {
+            capturedDisplay?.getTracks().forEach(t => t.stop());
             handleMicError(err);
             return;
         }
 
         mediaStream = stream;
+
+        // Mistura microfone + alto-falante quando no modo online
+        let recorderStream = stream;
+        if (isOnlineMode && capturedDisplay) {
+            displayStream = capturedDisplay;
+            mixAudioCtx   = new AudioContext();
+            const dest        = mixAudioCtx.createMediaStreamDestination();
+            const micSrc      = mixAudioCtx.createMediaStreamSource(stream);
+            const displaySrc  = mixAudioCtx.createMediaStreamSource(displayStream);
+            micSrc.connect(dest);
+            displaySrc.connect(dest);
+            recorderStream = dest.stream;
+
+            // Se o usuário parar de compartilhar externamente, encerra a gravação
+            displayStream.getAudioTracks()[0].onended = () => {
+                if (mediaStream?.active) el.btnStop?.click();
+            };
+        }
 
         // Finaliza sessão anterior (se houver) e cria nova
         if (currentSessionId) SessionManager.finalizeSession(currentSessionId);
@@ -257,15 +394,15 @@ function initRecorder(app) {
         _liveBoxLastFinal     = '';
         window.lastAudioBlob  = null;
 
-        // MediaRecorder
+        // MediaRecorder usa o stream misto (ou só microfone)
         audioChunks = [];
         const mime  = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
             ? 'audio/webm;codecs=opus' : 'audio/webm';
-        mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+        mediaRecorder = new MediaRecorder(recorderStream, { mimeType: mime });
         mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
         mediaRecorder.start(1000);
 
-        // SpeechRecognition para exibição ao vivo
+        // SpeechRecognition usa apenas o microfone (limitação da API do navegador)
         if (hasSpeechAPI) {
             recognition = buildRecognition(
                 (final, interim) => updateLiveBox(final, interim),
@@ -280,6 +417,17 @@ function initRecorder(app) {
         } else {
             if (el.liveTranscriptText)
                 el.liveTranscriptText.textContent = 'Áudio capturado. Transcrição ao vivo requer Chrome ou Edge.';
+        }
+
+        // Mostra/oculta nota do modo online
+        if (elOnlineNote) {
+            if (isOnlineMode) {
+                elOnlineNote.classList.remove('hidden');
+                elOnlineNote.classList.add('flex');
+            } else {
+                elOnlineNote.classList.add('hidden');
+                elOnlineNote.classList.remove('flex');
+            }
         }
 
         startVisualizer(stream, el.vizBars);
@@ -383,6 +531,13 @@ function initRecorder(app) {
         }
         mediaStream?.getTracks().forEach(t => t.stop());
         mediaStream = null;
+        stopDisplayStream();
+
+        // Oculta nota do modo online
+        if (elOnlineNote) {
+            elOnlineNote.classList.add('hidden');
+            elOnlineNote.classList.remove('flex');
+        }
 
         // O texto do SpeechRecognition serve apenas de rascunho visual.
         // Usa os chunks consolidados do SessionManager como fonte primária —
