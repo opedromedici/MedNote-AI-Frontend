@@ -46,33 +46,32 @@ function buildRecognition(onResult, onError, onChunk) {
     rec.lang            = 'pt-BR';
     rec.maxAlternatives = 1;
 
-    let sessionFinal = ''; // texto finalizado NESTA sessão de recognition
+    // sessionCurrent: texto completo desta sessão (finais + último interim)
+    // Cada palavra detectada é escrita imediatamente — sem distinção interim/final.
+    let sessionCurrent = '';
 
     rec.onresult = (event) => {
-        let interim = '';
-        // Processa apenas resultados novos (a partir de resultIndex)
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-            const text = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-                sessionFinal += text + ' ';
-            } else {
-                interim += text;
-            }
+        // Reconstrói o texto completo desta sessão a partir de TODOS os resultados.
+        // Iterar do 0 (não do resultIndex) garante que o texto nunca regride —
+        // o recognition pode atualizar resultados anteriores com mais contexto.
+        let current = '';
+        for (let i = 0; i < event.results.length; i++) {
+            current += event.results[i][0].transcript;
+            if (event.results[i].isFinal) current += ' ';
         }
-        // Exibe acumulado de sessões anteriores + sessão atual + interim
-        onResult(accumulatedTranscript + sessionFinal, interim);
+        sessionCurrent = current;
+        onResult(accumulatedTranscript + sessionCurrent);
     };
 
     rec.onerror = (event) => {
         if (event.error !== 'no-speech') onError(event.error);
     };
 
-    // onend: chamado quando a sessão encerra (auto ou manual)
+    // onend: persiste o que foi capturado (inclusive palavras que eram interim)
     rec.onend = () => {
-        // Persiste o chunk antes de reiniciar (proteção contra refresh)
-        if (onChunk && sessionFinal.trim()) onChunk(sessionFinal);
-        accumulatedTranscript += sessionFinal;
-        sessionFinal = '';
+        if (onChunk && sessionCurrent.trim()) onChunk(sessionCurrent);
+        accumulatedTranscript += sessionCurrent;
+        sessionCurrent = '';
 
         // Reinicia automaticamente apenas se ainda estiver gravando
         if (mediaStream && mediaStream.active && !isPaused) {
@@ -80,11 +79,11 @@ function buildRecognition(onResult, onError, onChunk) {
         }
     };
 
-    // Método para forçar flush antes de um stop manual (pause ou stop)
+    // Flush antes de stop/pause manual
     rec._flush = () => {
-        if (onChunk && sessionFinal.trim()) onChunk(sessionFinal);
-        accumulatedTranscript += sessionFinal;
-        sessionFinal = '';
+        if (onChunk && sessionCurrent.trim()) onChunk(sessionCurrent);
+        accumulatedTranscript += sessionCurrent;
+        sessionCurrent = '';
     };
 
     return rec;
@@ -223,41 +222,15 @@ function initRecorder(app) {
         el.micErrorBanner?.classList.remove('flex');
     }
 
-    // Atualiza a caixa de transcrição ao vivo sem reconstruir o texto já exibido.
-    // Mantém o texto finalizado estável e só atualiza o span de interim (palavras em andamento).
-    // Isso evita o efeito "rolando do início ao fim" que ocorria ao reiniciar a sessão de recognition.
+    // Atualiza a caixa de transcrição ao vivo.
+    // Cada palavra é escrita diretamente assim que detectada — sem separação interim/final.
     let _liveBoxLastFinal = '';
-    function updateLiveBox(final, interim) {
+    function updateLiveBox(text) {
         if (!el.liveTranscriptText) return;
-
-        // Só reconstrói o texto final quando ele realmente mudou
-        if (final !== _liveBoxLastFinal) {
-            _liveBoxLastFinal = final;
-            el.liveTranscriptText.textContent = '';
-            const spanFinal = document.createElement('span');
-            spanFinal.textContent = final;
-            el.liveTranscriptText.appendChild(spanFinal);
-
-            // Recria o span de interim após atualizar o final
-            const spanInterim = document.createElement('span');
-            spanInterim.id = 'live-interim-span';
-            spanInterim.className = 'text-zinc-400 italic';
-            spanInterim.textContent = interim;
-            el.liveTranscriptText.appendChild(spanInterim);
-        } else {
-            // Apenas atualiza o interim sem tocar no texto final já renderizado
-            let spanInterim = document.getElementById('live-interim-span');
-            if (!spanInterim) {
-                spanInterim = document.createElement('span');
-                spanInterim.id = 'live-interim-span';
-                spanInterim.className = 'text-zinc-400 italic';
-                el.liveTranscriptText.appendChild(spanInterim);
-            }
-            spanInterim.textContent = interim;
-        }
-
-        // Rola para o final apenas quando há novo texto interim (usuário está falando)
-        if (interim && el.liveTranscriptBox) {
+        if (text === _liveBoxLastFinal) return;
+        _liveBoxLastFinal = text;
+        el.liveTranscriptText.textContent = text;
+        if (el.liveTranscriptBox) {
             el.liveTranscriptBox.scrollTop = el.liveTranscriptBox.scrollHeight;
         }
     }
@@ -416,7 +389,7 @@ function initRecorder(app) {
         // SpeechRecognition usa apenas o microfone (limitação da API do navegador)
         if (hasSpeechAPI) {
             recognition = buildRecognition(
-                (final, interim) => updateLiveBox(final, interim),
+                (text) => updateLiveBox(text),
                 (code) => { if (code === 'not-allowed') showMicError('Permissão de microfone bloqueada.'); },
                 (texto) => {
                     SessionManager.saveChunk(currentSessionId, texto);
@@ -497,7 +470,7 @@ function initRecorder(app) {
         // Nova instância de recognition — accumulatedTranscript já tem o texto anterior
         if (hasSpeechAPI && mediaStream?.active) {
             recognition = buildRecognition(
-                (final, interim) => updateLiveBox(final, interim),
+                (text) => updateLiveBox(text),
                 () => {},
                 (texto) => {
                     SessionManager.saveChunk(currentSessionId, texto);
