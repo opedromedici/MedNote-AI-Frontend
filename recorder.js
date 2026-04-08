@@ -355,9 +355,12 @@ function initRecorder(app) {
 
         let stream;
         try {
-            stream = await navigator.mediaDevices.getUserMedia({
-                audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1, sampleRate: 16000 }
-            });
+            // Em modo online: sem sampleRate fixo e sem echoCancellation para evitar
+            // mismatch de sample rate com o áudio da aba e cancelamento acidental do paciente
+            const micConstraints = isOnlineMode
+                ? { audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }
+                : { audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1, sampleRate: 16000 } };
+            stream = await navigator.mediaDevices.getUserMedia(micConstraints);
         } catch (err) {
             capturedDisplay?.getTracks().forEach(t => t.stop());
             handleMicError(err);
@@ -371,9 +374,10 @@ function initRecorder(app) {
         if (isOnlineMode && capturedDisplay) {
             displayStream = capturedDisplay;
             mixAudioCtx   = new AudioContext();
-            const dest        = mixAudioCtx.createMediaStreamDestination();
-            const micSrc      = mixAudioCtx.createMediaStreamSource(stream);
-            const displaySrc  = mixAudioCtx.createMediaStreamSource(displayStream);
+            await mixAudioCtx.resume(); // garante que o contexto não está suspenso
+            const dest       = mixAudioCtx.createMediaStreamDestination();
+            const micSrc     = mixAudioCtx.createMediaStreamSource(stream);
+            const displaySrc = mixAudioCtx.createMediaStreamSource(displayStream);
             micSrc.connect(dest);
             displaySrc.connect(dest);
             recorderStream = dest.stream;
